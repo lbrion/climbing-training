@@ -148,6 +148,7 @@ export function generatePlan(state: UserState, today: string): Plan {
   const endDay = daysBetween(start, today) + HORIZON_DAYS;
   const sessions: Session[] = [];
   const lastHardFingerByDate: string[] = [];
+  if (cfg.assessment.lastHardSessionDate) lastHardFingerByDate.push(cfg.assessment.lastHardSessionDate);
 
   const totalWeeks = Math.ceil(endDay / 7) + 1;
   for (let w = 0; w < totalWeeks; w++) {

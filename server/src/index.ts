@@ -80,6 +80,7 @@ const configSchema = z.object({
     experienceYears: z.number().min(0).max(60),
     weeklySessionsHistorical: z.number().min(0).max(14),
     injuryHistory: z.array(z.enum(['finger', 'elbow', 'shoulder', 'wrist', 'back', 'knee'])),
+    lastHardSessionDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
     selfRated: z.object({
       technique: z.number().min(1).max(5),
       power: z.number().min(1).max(5),

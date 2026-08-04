@@ -197,6 +197,22 @@ describe('generatePlan', () => {
     expect(upcoming!.hints.join(' ')).toMatch(/Progress the difficulty/);
   });
 
+  it('does not prescribe a hard finger session within 48h of a pre-plan hard session', () => {
+    const state: UserState = {
+      ...base,
+      config: {
+        ...base.config,
+        assessment: { ...base.config.assessment, lastHardSessionDate: '2026-08-02' },
+      },
+    };
+    const plan = generatePlan(state, '2026-08-03');
+    const firstHardFinger = plan.sessions.find(
+      (s) => TEMPLATES[s.type].fingerLoad && TEMPLATES[s.type].intensity === 'high',
+    );
+    expect(firstHardFinger).toBeDefined();
+    expect(daysBetween('2026-08-02', firstHardFinger!.date)).toBeGreaterThanOrEqual(2);
+  });
+
   it('honors move events', () => {
     const plan0 = generatePlan(base, '2026-08-03');
     const target = plan0.sessions[0];

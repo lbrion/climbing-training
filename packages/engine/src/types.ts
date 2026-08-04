@@ -9,6 +9,7 @@ export interface Assessment {
   experienceYears: number;
   weeklySessionsHistorical: number;
   injuryHistory: InjurySite[];
+  lastHardSessionDate?: string | null;
   selfRated: { technique: 1 | 2 | 3 | 4 | 5; power: 1 | 2 | 3 | 4 | 5; endurance: 1 | 2 | 3 | 4 | 5 };
 }
 

@@ -20,6 +20,7 @@ const defaults: Config = {
     experienceYears: 2,
     weeklySessionsHistorical: 2,
     injuryHistory: [],
+    lastHardSessionDate: null,
     selfRated: { technique: 3, power: 3, endurance: 3 },
   },
   goal: { type: 'grade', targetGrade: 6 },
@@ -72,6 +73,28 @@ export function Setup({ initial, onDone }: { initial?: Config; onDone: (s: AppSt
           value={a.weeklySessionsHistorical}
           onChange={(e) => setA({ weeklySessionsHistorical: +e.target.value })}
         />
+      </label>
+      <label>
+        Last hard session (limit climbing, hangboard, heavy pulls)
+        <select
+          value={
+            a.lastHardSessionDate == null
+              ? '3+'
+              : String(Math.round((Date.parse(todayIso()) - Date.parse(a.lastHardSessionDate)) / 86400000))
+          }
+          onChange={(e) => {
+            const v = e.target.value;
+            setA({
+              lastHardSessionDate:
+                v === '3+' ? null : new Date(Date.parse(todayIso()) - +v * 86400000).toISOString().slice(0, 10),
+            });
+          }}
+        >
+          <option value="0">Today</option>
+          <option value="1">Yesterday</option>
+          <option value="2">2 days ago</option>
+          <option value="3+">3+ days ago</option>
+        </select>
       </label>
     </section>,
     <section key="strength">
