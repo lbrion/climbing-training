@@ -1,6 +1,6 @@
 import { QUALITY_SESSIONS, rankWeaknesses } from './assessment.js';
 import { learnProfile } from './learn.js';
-import { TEMPLATES } from './templates.js';
+import { TEMPLATES, type Template } from './templates.js';
 import type {
   Config,
   Equipment,
@@ -193,6 +193,7 @@ export function generatePlan(state: UserState, today: string): Plan {
         exercises: t.exercises(phase, cfg.assessment.maxBoulderGrade),
         weekPhase: phase,
         warnings,
+        hints: [],
       });
     });
   }
@@ -221,50 +222,162 @@ export function generatePlan(state: UserState, today: string): Plan {
     if (e.kind === 'feedback') lastFeedback.set(e.sessionId, { completed: e.completed, date: e.date });
   }
   const consumed = new Set<string>();
+
+  const dayFree = (date: string) =>
+    availability.minutesByWeekday[weekdayOf(date)] >= 30 &&
+    phaseForWeek(Math.floor(daysBetween(start, date) / 7)) !== 'deload';
+
+  const tryShiftRecovery = (missedSession: Session, missedTmpl: Template): boolean => {
+    let insertDate: string | null = null;
+    for (let off = 0; off < 5; off++) {
+      const d = addDays(today, off);
+      if (dayFree(d) && !sessions.some((o) => o.date === d && lastFeedback.has(o.id))) {
+        insertDate = d;
+        break;
+      }
+    }
+    if (!insertDate) return false;
+
+    const movable = sessions
+      .filter((o) => daysBetween(today, o.date) >= 0 && !lastFeedback.has(o.id) && !consumed.has(o.id))
+      .sort((a, b) => a.date.localeCompare(b.date));
+    const savedDates = new Map(movable.map((o) => [o.id, o.date]));
+
+    const inserted: Session = {
+      id: `${missedSession.id}-r`,
+      date: insertDate,
+      type: missedSession.type,
+      title: missedTmpl.title,
+      intensity: missedTmpl.intensity,
+      durationMin: Math.min(availability.minutesByWeekday[weekdayOf(insertDate)], missedTmpl.baseDurationMin),
+      focus: missedTmpl.focus,
+      exercises: missedTmpl.exercises(phaseForWeek(Math.floor(daysBetween(start, insertDate) / 7)), cfg.assessment.maxBoulderGrade),
+      weekPhase: phaseForWeek(Math.floor(daysBetween(start, insertDate) / 7)),
+      warnings: ['Recovered from missed session; later sessions shifted to keep recovery spacing.'],
+      hints: [],
+    };
+    const all = [inserted, ...movable];
+
+    const nextFreeAfter = (date: string): string | null => {
+      for (let off = 1; off <= 14; off++) {
+        const d = addDays(date, off);
+        if (daysBetween(today, d) >= 14) return null;
+        if (dayFree(d)) return d;
+      }
+      return null;
+    };
+
+    let changed = true;
+    let guard = 0;
+    while (changed && guard++ < 40) {
+      changed = false;
+      const sorted = [...all].sort((a, b) => a.date.localeCompare(b.date) || (a.id === inserted.id ? -1 : 1));
+      for (let i = 1; i < sorted.length; i++) {
+        const cur = sorted[i];
+        const collision = sorted.slice(0, i).some((p) => p.date === cur.date);
+        const prevHardFinger = sorted
+          .slice(0, i)
+          .filter((p) => TEMPLATES[p.type].fingerLoad && TEMPLATES[p.type].intensity === 'high')
+          .some((p) => TEMPLATES[cur.type].fingerLoad && TEMPLATES[cur.type].intensity === 'high' && daysBetween(p.date, cur.date) < fingerGap);
+        const prevHighAdjacent = sorted
+          .slice(0, i)
+          .filter((p) => TEMPLATES[p.type].intensity === 'high')
+          .some((p) => TEMPLATES[cur.type].intensity === 'high' && daysBetween(p.date, cur.date) <= 1);
+        if (collision || prevHardFinger || prevHighAdjacent) {
+          const next = nextFreeAfter(cur.date);
+          if (!next) {
+            for (const o of movable) o.date = savedDates.get(o.id)!;
+            return false;
+          }
+          cur.date = next;
+          changed = true;
+          break;
+        }
+      }
+    }
+    if (guard >= 40) {
+      for (const o of movable) o.date = savedDates.get(o.id)!;
+      return false;
+    }
+
+    consumed.add(inserted.id);
+    sessions.push(inserted);
+    byId.set(inserted.id, inserted);
+    for (const o of movable) {
+      if (o.date !== savedDates.get(o.id)) o.warnings.push('Shifted to absorb a recovered session.');
+    }
+    notices.push(`Missed ${missedTmpl.title} was rescheduled to ${insertDate}; later sessions shifted where needed.`);
+    return true;
+  };
+
   for (const [sessionId, fb] of lastFeedback) {
     if (fb.completed || daysBetween(fb.date, today) > 5) continue;
     const missedSession = byId.get(sessionId);
     if (!missedSession || TEMPLATES[missedSession.type].intensity !== 'high') continue;
     const missedTmpl = TEMPLATES[missedSession.type];
-    const candidate = sessions.find(
-      (o) =>
-        !consumed.has(o.id) &&
-        daysBetween(today, o.date) >= 0 &&
-        daysBetween(today, o.date) < 5 &&
-        o.intensity !== 'high' &&
-        o.type !== missedSession.type &&
-        o.weekPhase !== 'deload' &&
-        !lastFeedback.has(o.id) &&
+    if (tryShiftRecovery(missedSession, missedTmpl)) continue;
+    for (let off = 0; off < 5; off++) {
+      const date = addDays(today, off);
+      if (availability.minutesByWeekday[weekdayOf(date)] < 30) continue;
+      const week = Math.floor(daysBetween(start, date) / 7);
+      if (phaseForWeek(week) === 'deload') continue;
+      const onDate = sessions.filter((o) => o.date === date);
+      if (onDate.some((o) => o.intensity === 'high' || lastFeedback.has(o.id) || consumed.has(o.id))) continue;
+      const spacingOk =
         (!missedTmpl.fingerLoad ||
           !sessions.some(
             (h) =>
-              h.id !== o.id &&
+              h.date !== date &&
               TEMPLATES[h.type].fingerLoad &&
               TEMPLATES[h.type].intensity === 'high' &&
-              Math.abs(daysBetween(h.date, o.date)) < fingerGap,
+              !lastFeedback.has(h.id) &&
+              Math.abs(daysBetween(h.date, date)) < fingerGap,
           )) &&
         !sessions.some(
           (h) =>
-            h.id !== o.id &&
-            !consumed.has(h.id) &&
+            h.date !== date &&
             TEMPLATES[h.type].intensity === 'high' &&
-            Math.abs(daysBetween(h.date, o.date)) <= 1,
-        ),
-    );
-    if (!candidate) continue;
-    consumed.add(candidate.id);
-    const replacedTitle = candidate.title;
-    candidate.type = missedSession.type;
-    candidate.title = missedTmpl.title;
-    candidate.intensity = missedTmpl.intensity;
-    candidate.focus = missedTmpl.focus;
-    candidate.durationMin = Math.min(
-      availability.minutesByWeekday[weekdayOf(candidate.date)],
-      missedTmpl.baseDurationMin,
-    );
-    candidate.exercises = missedTmpl.exercises(candidate.weekPhase, cfg.assessment.maxBoulderGrade);
-    candidate.warnings.push(`Recovered from missed session (replaced ${replacedTitle}).`);
-    notices.push(`Missed ${missedTmpl.title} was rescheduled to ${candidate.date}.`);
+            !lastFeedback.has(h.id) &&
+            Math.abs(daysBetween(h.date, date)) <= 1,
+        );
+      if (!spacingOk) continue;
+
+      const budget = availability.minutesByWeekday[weekdayOf(date)];
+      const target = onDate.find((o) => o.type !== missedSession.type);
+      if (target) {
+        consumed.add(target.id);
+        const replacedTitle = target.title;
+        target.type = missedSession.type;
+        target.title = missedTmpl.title;
+        target.intensity = missedTmpl.intensity;
+        target.focus = missedTmpl.focus;
+        target.durationMin = Math.min(budget, missedTmpl.baseDurationMin);
+        target.exercises = missedTmpl.exercises(target.weekPhase, cfg.assessment.maxBoulderGrade);
+        target.warnings.push(`Recovered from missed session (replaced ${replacedTitle}).`);
+        notices.push(`Missed ${missedTmpl.title} was rescheduled to ${date}.`);
+      } else if (onDate.length === 0) {
+        const inserted = {
+          id: `${sessionId}-r`,
+          date,
+          type: missedSession.type,
+          title: missedTmpl.title,
+          intensity: missedTmpl.intensity,
+          durationMin: Math.min(budget, missedTmpl.baseDurationMin),
+          focus: missedTmpl.focus,
+          exercises: missedTmpl.exercises(phaseForWeek(week), cfg.assessment.maxBoulderGrade),
+          weekPhase: phaseForWeek(week),
+          warnings: ['Recovered from missed session (added on a rest day).'],
+          hints: [],
+        };
+        consumed.add(inserted.id);
+        sessions.push(inserted);
+        byId.set(inserted.id, inserted);
+        notices.push(`Missed ${missedTmpl.title} was rescheduled to ${date}.`);
+      } else {
+        continue;
+      }
+      break;
+    }
   }
 
   const load = computeLoad(state.events, byId, today);
@@ -276,6 +389,43 @@ export function generatePlan(state: UserState, today: string): Plan {
         s.intensity = 'medium';
         s.warnings.push('Intensity reduced this week to manage load spike.');
       }
+    }
+  }
+
+  if (learned.todayReadiness === 1) {
+    for (const s of sessions) {
+      if (s.date === today && s.intensity === 'high') {
+        s.intensity = 'medium';
+        s.warnings.push('You reported feeling heavy today: keep this session sub-maximal.');
+      }
+    }
+    notices.push("Feeling heavy today: today's intensity is dialed back. Quality over load.");
+  }
+
+  const EXPECTED_RPE: Record<string, number> = { high: 8.5, medium: 6.5, low: 4.5 };
+  const rpeByType = new Map<string, number[]>();
+  for (const e of state.events) {
+    if (e.kind !== 'feedback' || !e.completed || e.rpe === null) continue;
+    if (daysBetween(e.date, today) > 45 || daysBetween(e.date, today) < 0) continue;
+    const s = byId.get(e.sessionId);
+    if (!s) continue;
+    const arr = rpeByType.get(s.type) ?? [];
+    arr.push(e.rpe);
+    rpeByType.set(s.type, arr);
+  }
+  for (const [type, arr] of rpeByType) {
+    if (arr.length < 3) continue;
+    const mean = arr.reduce((a, b) => a + b, 0) / arr.length;
+    const expected = EXPECTED_RPE[TEMPLATES[type as SessionType].intensity];
+    let hint: string | null = null;
+    if (mean <= expected - 1.5) {
+      hint = `Your last ${arr.length} ${TEMPLATES[type as SessionType].title} sessions averaged RPE ${mean.toFixed(1)} (target ~${expected}). Progress the difficulty: harder problems, more load, or smaller edges.`;
+    } else if (mean >= expected + 1) {
+      hint = `Your last ${arr.length} ${TEMPLATES[type as SessionType].title} sessions averaged RPE ${mean.toFixed(1)} (target ~${expected}). Back off slightly so quality stays high.`;
+    }
+    if (!hint) continue;
+    for (const s of sessions) {
+      if (s.type === type && daysBetween(today, s.date) >= 0) s.hints.push(hint);
     }
   }
 

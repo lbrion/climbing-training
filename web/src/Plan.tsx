@@ -92,6 +92,9 @@ export function PlanView({
   const quickMiss = async (s: Session) => {
     onUpdate(await api.event({ kind: 'feedback', sessionId: s.id, date: s.date, completed: false, rpe: null, pain: null }));
   };
+  const logReadiness = async (level: 1 | 2 | 3) => {
+    onUpdate(await api.event({ kind: 'readiness', date: plan.generatedFor, level }));
+  };
   const today = plan.generatedFor;
   const [view, setView] = useState<View>(() => (localStorage.getItem('planView') as View) ?? 'list');
   const [selected, setSelected] = useState(today);
@@ -120,6 +123,23 @@ export function PlanView({
           Weekly load ratio {plan.loadStatus.ratio.toFixed(2)} {plan.loadStatus.capped ? '(capped)' : ''}
         </div>
       )}
+      {!(state.events ?? []).some((e) => e.kind === 'readiness' && e.date === today) &&
+        (byDate.get(today)?.length ?? 0) > 0 && (
+          <div className="readiness">
+            <span>How do you feel today?</span>
+            <div className="row">
+              <button className="seg" onClick={() => logReadiness(3)}>
+                Fresh
+              </button>
+              <button className="seg" onClick={() => logReadiness(2)}>
+                Normal
+              </button>
+              <button className="seg" onClick={() => logReadiness(1)}>
+                Heavy
+              </button>
+            </div>
+          </div>
+        )}
       <div className="row viewtoggle">
         <button className={view === 'list' ? 'seg on' : 'seg'} onClick={() => setViewPersist('list')}>
           List

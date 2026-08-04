@@ -70,6 +70,7 @@ export interface Session {
   exercises: Exercise[];
   weekPhase: Phase;
   warnings: string[];
+  hints: string[];
 }
 
 export type Phase = 'base' | 'build' | 'peak' | 'deload';
@@ -81,6 +82,7 @@ export interface PainReport {
 
 export type PlanEvent =
   | { kind: 'feedback'; sessionId: string; date: string; completed: boolean; rpe: number | null; pain: PainReport | null; notes?: string }
+  | { kind: 'readiness'; date: string; level: 1 | 2 | 3 }
   | { kind: 'move'; sessionId: string; fromDate: string; toDate: string }
   | { kind: 'availability'; date: string; availability: Availability }
   | { kind: 'goal'; date: string; goal: Goal };

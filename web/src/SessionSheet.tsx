@@ -47,6 +47,11 @@ export function SessionSheet({
         <div className="sheet-handle" />
         <h2>{session.title}</h2>
         <p className="focus">{session.focus}</p>
+        {session.hints.map((h, i) => (
+          <div key={i} className="hint-line">
+            {h}
+          </div>
+        ))}
         <ul className="exercises">
           {session.exercises.map((ex, i) => (
             <li key={i}>

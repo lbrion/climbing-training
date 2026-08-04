@@ -141,6 +141,62 @@ describe('generatePlan', () => {
     expect(week.length).toBe(5);
   });
 
+  it('shift-recovers a missed limit session to the next day when availability allows', () => {
+    const everyday: UserState = {
+      ...base,
+      config: { ...base.config, availability: { minutesByWeekday: [120, 120, 120, 120, 120, 120, 120] } },
+    };
+    const plan0 = generatePlan(everyday, '2026-08-03');
+    const limit = plan0.sessions.find((s) => s.date === '2026-08-03' && s.type === 'limit-boulder')!;
+    const state: UserState = {
+      ...everyday,
+      events: [{ kind: 'feedback', sessionId: limit.id, date: limit.date, completed: false, rpe: null, pain: null }],
+    };
+    const plan = generatePlan(state, '2026-08-04');
+    const recovered = plan.sessions.find((s) => s.id === `${limit.id}-r`);
+    expect(recovered).toBeDefined();
+    expect(recovered!.date).toBe('2026-08-04');
+    expect(recovered!.type).toBe('limit-boulder');
+    const upcoming = plan.sessions.filter((s) => s.date >= '2026-08-04').sort((a, b) => a.date.localeCompare(b.date));
+    const dates = new Set<string>();
+    for (const s of upcoming) {
+      expect(dates.has(s.date)).toBe(false);
+      dates.add(s.date);
+    }
+    for (let i = 1; i < upcoming.length; i++) {
+      const a = upcoming[i - 1];
+      const b = upcoming[i];
+      if (a.intensity === 'high' && b.intensity === 'high') {
+        expect(daysBetween(a.date, b.date)).toBeGreaterThanOrEqual(2);
+      }
+    }
+  });
+
+  it('downgrades today after a heavy readiness report', () => {
+    const everyday: UserState = {
+      ...base,
+      config: { ...base.config, availability: { minutesByWeekday: [120, 120, 120, 120, 120, 120, 120] } },
+    };
+    const state: UserState = { ...everyday, events: [{ kind: 'readiness', date: '2026-08-03', level: 1 }] };
+    const plan = generatePlan(state, '2026-08-03');
+    for (const s of plan.sessions.filter((s) => s.date === '2026-08-03')) {
+      expect(s.intensity).not.toBe('high');
+    }
+    expect(plan.notices.join(' ')).toMatch(/heavy/i);
+  });
+
+  it('adds progression hints when a session type consistently rates easy', () => {
+    const plan0 = generatePlan(base, '2026-08-24');
+    const limits = plan0.sessions.filter((s) => s.type === 'limit-boulder' && s.date < '2026-08-24').slice(0, 3);
+    const events: UserState['events'] = limits.map((s) => ({
+      kind: 'feedback', sessionId: s.id, date: s.date, completed: true, rpe: 6, pain: null,
+    }));
+    const plan = generatePlan({ ...base, events }, '2026-08-24');
+    const upcoming = plan.sessions.find((s) => s.type === 'limit-boulder' && s.date >= '2026-08-24');
+    expect(upcoming).toBeDefined();
+    expect(upcoming!.hints.join(' ')).toMatch(/Progress the difficulty/);
+  });
+
   it('honors move events', () => {
     const plan0 = generatePlan(base, '2026-08-03');
     const target = plan0.sessions[0];

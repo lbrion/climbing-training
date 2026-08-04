@@ -45,6 +45,11 @@ const eventSchema = z.discriminatedUnion('kind', [
     notes: z.string().optional(),
   }),
   z.object({
+    kind: z.literal('readiness'),
+    date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    level: z.union([z.literal(1), z.literal(2), z.literal(3)]),
+  }),
+  z.object({
     kind: z.literal('move'),
     sessionId: z.string(),
     fromDate: z.string(),
@@ -81,7 +86,7 @@ const configSchema = z.object({
       endurance: z.number().min(1).max(5),
     }),
   }),
-  goal: eventSchema.options[3].shape.goal,
+  goal: eventSchema.options[4].shape.goal,
   availability: z.object({ minutesByWeekday: z.array(z.number().min(0).max(600)).length(7) }),
   equipment: z.object({
     climbingGym: z.boolean(),

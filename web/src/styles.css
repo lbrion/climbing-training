@@ -217,6 +217,24 @@ legend {
   background: transparent;
   border: 1px solid var(--panel2);
 }
+.readiness {
+  background: var(--panel);
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin: 4px 0 8px;
+  font-size: 14px;
+}
+.readiness .row {
+  margin: 10px 0 0;
+}
+.hint-line {
+  background: #1e2e3a;
+  color: #8fc7f0;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 13px;
+  margin: 6px 0;
+}
 .card.rest {
   border-left-color: var(--panel2);
   opacity: 0.75;
