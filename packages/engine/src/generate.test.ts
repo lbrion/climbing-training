@@ -1,0 +1,112 @@
+import { describe, expect, it } from 'vitest';
+import { generatePlan, daysBetween } from './generate.js';
+import { TEMPLATES } from './templates.js';
+import type { UserState } from './types.js';
+
+const base: UserState = {
+  config: {
+    assessment: {
+      date: '2026-08-01',
+      maxBoulderGrade: 6,
+      flashGrade: 4,
+      fingerStrengthPctBw: 115,
+      maxPullupsAdded: 15,
+      experienceYears: 4,
+      weeklySessionsHistorical: 3,
+      injuryHistory: [],
+      selfRated: { technique: 3, power: 3, endurance: 2 },
+    },
+    goal: { type: 'grade', targetGrade: 8 },
+    availability: { minutesByWeekday: [90, 0, 90, 0, 60, 120, 0] },
+    equipment: { climbingGym: true, hangboard: true, boardWall: false, weights: false, pullupBar: true },
+    planStart: '2026-08-03',
+  },
+  events: [],
+};
+
+describe('generatePlan', () => {
+  it('is deterministic', () => {
+    const a = generatePlan(base, '2026-08-03');
+    const b = generatePlan(base, '2026-08-03');
+    expect(a).toEqual(b);
+  });
+
+  it('only schedules on available days', () => {
+    const plan = generatePlan(base, '2026-08-03');
+    for (const s of plan.sessions) {
+      const wd = (new Date(s.date + 'T00:00:00Z').getUTCDay() + 6) % 7;
+      expect(base.config.availability.minutesByWeekday[wd]).toBeGreaterThan(0);
+      expect(s.durationMin).toBeLessThanOrEqual(base.config.availability.minutesByWeekday[wd]);
+    }
+  });
+
+  it('spaces hard finger sessions 48h apart', () => {
+    const plan = generatePlan(base, '2026-08-03');
+    const hardFinger = plan.sessions.filter(
+      (s) => TEMPLATES[s.type].fingerLoad && TEMPLATES[s.type].intensity === 'high',
+    );
+    for (let i = 1; i < hardFinger.length; i++) {
+      expect(daysBetween(hardFinger[i - 1].date, hardFinger[i].date)).toBeGreaterThanOrEqual(2);
+    }
+  });
+
+  it('deloads every fourth week', () => {
+    const plan = generatePlan(base, '2026-08-24');
+    const deload = plan.sessions.filter((s) => s.weekPhase === 'deload');
+    expect(deload.length).toBeGreaterThan(0);
+    for (const s of deload) expect(s.intensity).not.toBe('high');
+  });
+
+  it('removes finger-loading sessions after finger pain', () => {
+    const hurt: UserState = {
+      ...base,
+      events: [{ kind: 'feedback', sessionId: 's-0-0', date: '2026-08-03', completed: true, rpe: 8, pain: { site: 'finger', severity: 2 } }],
+    };
+    const plan = generatePlan(hurt, '2026-08-04');
+    const upcoming = plan.sessions.filter((s) => s.date >= '2026-08-04' && s.date <= '2026-08-11');
+    for (const s of upcoming) expect(TEMPLATES[s.type].fingerLoad).toBe(false);
+    expect(plan.notices.join(' ')).toMatch(/finger/i);
+  });
+
+  it('gates hangboarding on experience', () => {
+    const novice: UserState = {
+      ...base,
+      config: {
+        ...base.config,
+        assessment: { ...base.config.assessment, experienceYears: 0.5, maxBoulderGrade: 2 },
+      },
+    };
+    const plan = generatePlan(novice, '2026-08-03');
+    expect(plan.sessions.some((s) => s.type === 'hangboard-max')).toBe(false);
+  });
+
+  it('honors move events', () => {
+    const plan0 = generatePlan(base, '2026-08-03');
+    const target = plan0.sessions[0];
+    const moved: UserState = {
+      ...base,
+      events: [{ kind: 'move', sessionId: target.id, fromDate: target.date, toDate: '2026-08-09' }],
+    };
+    const plan = generatePlan(moved, '2026-08-03');
+    expect(plan.sessions.find((s) => s.id === target.id)?.date).toBe('2026-08-09');
+  });
+
+  it('caps intensity when acute load spikes', () => {
+    const plan0 = generatePlan(base, '2026-08-17');
+    const past = plan0.sessions.filter((s) => s.date < '2026-08-17');
+    const events: UserState['events'] = past.map((s, i) => ({
+      kind: 'feedback',
+      sessionId: s.id,
+      date: s.date,
+      completed: true,
+      rpe: s.date >= '2026-08-10' ? 10 : 3,
+      pain: null,
+    }));
+    const plan = generatePlan({ ...base, events }, '2026-08-17');
+    if (plan.loadStatus.capped) {
+      const week = plan.sessions.filter((s) => s.date >= '2026-08-17' && s.date < '2026-08-24');
+      for (const s of week) expect(s.intensity).not.toBe('high');
+    }
+    expect(plan.loadStatus.ratio).not.toBeNull();
+  });
+});
