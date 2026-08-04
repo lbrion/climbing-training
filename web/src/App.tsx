@@ -38,7 +38,7 @@ export function App() {
           Settings
         </button>
       </header>
-      <PlanView state={state} onOpen={setOpen} />
+      <PlanView state={state} onOpen={setOpen} onUpdate={setState} />
       {open && (
         <SessionSheet
           session={open}

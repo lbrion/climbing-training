@@ -206,6 +206,17 @@ legend {
   color: var(--muted);
   font-size: 13px;
 }
+.card {
+  cursor: pointer;
+}
+.quick-miss {
+  margin-top: 8px;
+  padding: 6px 12px;
+  font-size: 13px;
+  color: var(--muted);
+  background: transparent;
+  border: 1px solid var(--panel2);
+}
 .card.rest {
   border-left-color: var(--panel2);
   opacity: 0.75;

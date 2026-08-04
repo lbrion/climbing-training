@@ -96,6 +96,21 @@ describe('generatePlan', () => {
     expect(trainedDays.size).toBe(week1.length);
   });
 
+  it('reschedules a missed high-intensity session onto an upcoming easier day', () => {
+    const plan0 = generatePlan(base, '2026-08-03');
+    const missed = plan0.sessions.find((s) => s.date === '2026-08-03' && s.intensity === 'high')!;
+    const state: UserState = {
+      ...base,
+      events: [{ kind: 'feedback', sessionId: missed.id, date: missed.date, completed: false, rpe: null, pain: null }],
+    };
+    const plan = generatePlan(state, '2026-08-04');
+    const recovered = plan.sessions.find((s) => s.warnings.some((w) => w.includes('Recovered from missed session')));
+    expect(recovered).toBeDefined();
+    expect(recovered!.type).toBe(missed.type);
+    expect(recovered!.date >= '2026-08-04').toBe(true);
+    expect(plan.notices.join(' ')).toMatch(/rescheduled/);
+  });
+
   it('honors move events', () => {
     const plan0 = generatePlan(base, '2026-08-03');
     const target = plan0.sessions[0];

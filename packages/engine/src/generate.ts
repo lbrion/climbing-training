@@ -211,6 +211,50 @@ export function generatePlan(state: UserState, today: string): Plan {
     if (conflict) s.warnings.push('Moved within 48h of another hard finger session — treat one as sub-maximal.');
   }
 
+  const lastFeedback = new Map<string, { completed: boolean; date: string }>();
+  for (const e of state.events) {
+    if (e.kind === 'feedback') lastFeedback.set(e.sessionId, { completed: e.completed, date: e.date });
+  }
+  const consumed = new Set<string>();
+  for (const [sessionId, fb] of lastFeedback) {
+    if (fb.completed || daysBetween(fb.date, today) > 5) continue;
+    const missedSession = byId.get(sessionId);
+    if (!missedSession || TEMPLATES[missedSession.type].intensity !== 'high') continue;
+    const missedTmpl = TEMPLATES[missedSession.type];
+    const candidate = sessions.find(
+      (o) =>
+        !consumed.has(o.id) &&
+        daysBetween(today, o.date) >= 0 &&
+        daysBetween(today, o.date) < 5 &&
+        o.intensity !== 'high' &&
+        o.type !== missedSession.type &&
+        o.weekPhase !== 'deload' &&
+        !lastFeedback.has(o.id) &&
+        (!missedTmpl.fingerLoad ||
+          !sessions.some(
+            (h) =>
+              h.id !== o.id &&
+              TEMPLATES[h.type].fingerLoad &&
+              TEMPLATES[h.type].intensity === 'high' &&
+              Math.abs(daysBetween(h.date, o.date)) < 2,
+          )),
+    );
+    if (!candidate) continue;
+    consumed.add(candidate.id);
+    const replacedTitle = candidate.title;
+    candidate.type = missedSession.type;
+    candidate.title = missedTmpl.title;
+    candidate.intensity = missedTmpl.intensity;
+    candidate.focus = missedTmpl.focus;
+    candidate.durationMin = Math.min(
+      availability.minutesByWeekday[weekdayOf(candidate.date)],
+      missedTmpl.baseDurationMin,
+    );
+    candidate.exercises = missedTmpl.exercises(candidate.weekPhase, cfg.assessment.maxBoulderGrade);
+    candidate.warnings.push(`Recovered from missed session (replaced ${replacedTitle}).`);
+    notices.push(`Missed ${missedTmpl.title} was rescheduled to ${candidate.date}.`);
+  }
+
   const load = computeLoad(state.events, byId, today);
   if (load.capped) {
     notices.push('Training load rose quickly (acute:chronic > 1.3). High-intensity sessions this week are capped at moderate effort.');

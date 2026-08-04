@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { Session } from '@climb/engine';
-import type { AppState } from './api.js';
+import { api, type AppState } from './api.js';
 
 const PHASE_LABEL: Record<string, string> = {
   base: 'Base',
@@ -26,9 +26,19 @@ function weekdayMon0(iso: string): number {
 
 type View = 'list' | 'calendar';
 
-function SessionCard({ s, done, onOpen }: { s: Session; done: boolean | null; onOpen: (s: Session) => void }) {
+function SessionCard({
+  s,
+  done,
+  onOpen,
+  onMiss,
+}: {
+  s: Session;
+  done: boolean | null;
+  onOpen: (s: Session) => void;
+  onMiss: (s: Session) => void;
+}) {
   return (
-    <button className={`card intensity-${s.intensity}`} onClick={() => onOpen(s)}>
+    <div className={`card intensity-${s.intensity}`} onClick={() => onOpen(s)}>
       <div className="card-top">
         <span className="title">{s.title}</span>
         <span className="phase">{PHASE_LABEL[s.weekPhase]}</span>
@@ -38,12 +48,23 @@ function SessionCard({ s, done, onOpen }: { s: Session; done: boolean | null; on
         {done === true ? ' · ✓ done' : ''}
         {done === false ? ' · missed' : ''}
       </div>
+      {done === null && (
+        <button
+          className="quick-miss"
+          onClick={(e) => {
+            e.stopPropagation();
+            onMiss(s);
+          }}
+        >
+          ✕ Didn't do it
+        </button>
+      )}
       {s.warnings.map((w, i) => (
         <div key={i} className="warn">
           {w}
         </div>
       ))}
-    </button>
+    </div>
   );
 }
 
@@ -58,8 +79,19 @@ function RestCard() {
   );
 }
 
-export function PlanView({ state, onOpen }: { state: AppState; onOpen: (s: Session) => void }) {
+export function PlanView({
+  state,
+  onOpen,
+  onUpdate,
+}: {
+  state: AppState;
+  onOpen: (s: Session) => void;
+  onUpdate: (next: AppState) => void;
+}) {
   const plan = state.plan!;
+  const quickMiss = async (s: Session) => {
+    onUpdate(await api.event({ kind: 'feedback', sessionId: s.id, date: s.date, completed: false, rpe: null, pain: null }));
+  };
   const today = plan.generatedFor;
   const [view, setView] = useState<View>(() => (localStorage.getItem('planView') as View) ?? 'list');
   const [selected, setSelected] = useState(today);
@@ -104,7 +136,7 @@ export function PlanView({ state, onOpen }: { state: AppState; onOpen: (s: Sessi
             {byDate.get(date)!.length === 0 ? (
               <RestCard />
             ) : (
-              byDate.get(date)!.map((s) => <SessionCard key={s.id} s={s} done={doneById.get(s.id) ?? null} onOpen={onOpen} />)
+              byDate.get(date)!.map((s) => <SessionCard key={s.id} s={s} done={doneById.get(s.id) ?? null} onOpen={onOpen} onMiss={quickMiss} />)
             )}
           </section>
         ))}
@@ -147,7 +179,7 @@ export function PlanView({ state, onOpen }: { state: AppState; onOpen: (s: Sessi
             {byDate.get(selected)!.length === 0 ? (
               <RestCard />
             ) : (
-              byDate.get(selected)!.map((s) => <SessionCard key={s.id} s={s} done={doneById.get(s.id) ?? null} onOpen={onOpen} />)
+              byDate.get(selected)!.map((s) => <SessionCard key={s.id} s={s} done={doneById.get(s.id) ?? null} onOpen={onOpen} onMiss={quickMiss} />)
             )}
           </section>
         </>
