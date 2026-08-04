@@ -44,9 +44,10 @@ function SessionCard({
         <span className="phase">{PHASE_LABEL[s.weekPhase]}</span>
       </div>
       <div className="card-sub">
-        {s.durationMin} min · {s.intensity} intensity
-        {done === true ? ' · ✓ done' : ''}
-        {done === false ? ' · missed' : ''}
+        <span className={`tag tag-${s.intensity}`}>{s.intensity}</span>
+        <span className="mono">{s.durationMin} MIN</span>
+        {done === true && <span className="mono done">✓ DONE</span>}
+        {done === false && <span className="mono missed">MISSED</span>}
       </div>
       {done === null && (
         <button
@@ -149,17 +150,32 @@ export function PlanView({
         </button>
       </div>
 
-      {view === 'list' &&
-        days.map((date) => (
-          <section key={date}>
-            <h2 className={date === today ? 'today' : ''}>{date === today ? `Today · ${fmtDay(date)}` : fmtDay(date)}</h2>
-            {byDate.get(date)!.length === 0 ? (
-              <RestCard />
-            ) : (
-              byDate.get(date)!.map((s) => <SessionCard key={s.id} s={s} done={doneById.get(s.id) ?? null} onOpen={onOpen} onMiss={quickMiss} />)
-            )}
-          </section>
-        ))}
+      {view === 'list' && (
+        <div className="route">
+          {days.map((date) => {
+            const daySessions = byDate.get(date)!;
+            const top = daySessions.reduce<string | null>(
+              (acc, s) => (acc === 'high' ? acc : s.intensity === 'high' ? 'high' : s.intensity === 'medium' ? 'medium' : acc ?? 'low'),
+              null,
+            );
+            return (
+              <section key={date} className="day">
+                <div className="rail">
+                  <span className={top ? `hold hold-${top}${date === today ? ' hold-today' : ''}` : `hold hold-rest${date === today ? ' hold-today' : ''}`} />
+                </div>
+                <div className="day-body">
+                  <h2 className={date === today ? 'today' : ''}>{date === today ? `Today · ${fmtDay(date)}` : fmtDay(date)}</h2>
+                  {daySessions.length === 0 ? (
+                    <RestCard />
+                  ) : (
+                    daySessions.map((s) => <SessionCard key={s.id} s={s} done={doneById.get(s.id) ?? null} onOpen={onOpen} onMiss={quickMiss} />)
+                  )}
+                </div>
+              </section>
+            );
+          })}
+        </div>
+      )}
 
       {view === 'calendar' && (
         <>

@@ -33,7 +33,17 @@ export function App() {
   return (
     <div className="screen">
       <header className="topbar">
-        <h1>Climb Plan</h1>
+        <div>
+          <h1>Climb Plan</h1>
+          {state.config && state.plan && (
+            <span className="phase-chip">
+              {state.plan.phaseByWeek[
+                Math.max(0, Math.floor((Date.parse(state.plan.generatedFor) - Date.parse(state.config.planStart)) / 604800000))
+              ]?.toUpperCase() ?? ''}{' '}
+              WEEK
+            </span>
+          )}
+        </div>
         <button className="ghost" onClick={() => setShowSetup(true)}>
           Settings
         </button>
