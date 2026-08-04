@@ -154,10 +154,13 @@ export function generatePlan(state: UserState, today: string): Plan {
       if (availability.minutesByWeekday[weekdayOf(date)] >= 30) days.push(date);
     }
     const painActive = daysBetween(today, weekStart) <= 7 ? pain : { finger: false, upperLimb: false };
-    const types = orderForSpacing(weeklySessionTypes(cfg, days.length, phase, painActive, w === Math.floor(daysBetween(start, today) / 7) ? notices : []));
+    const weeklyCap = Math.max(2, Math.min(6, cfg.assessment.weeklySessionsHistorical + 1));
+    const slots = Math.min(days.length, phase === 'deload' ? Math.min(weeklyCap, 4) : weeklyCap);
+    const scheduledDays = Array.from({ length: slots }, (_, i) => days[Math.floor((i * days.length) / slots)]);
+    const types = orderForSpacing(weeklySessionTypes(cfg, slots, phase, painActive, w === Math.floor(daysBetween(start, today) / 7) ? notices : []));
 
     types.forEach((type, slot) => {
-      const date = days[slot];
+      const date = scheduledDays[slot];
       if (!date) return;
       const tmpl = TEMPLATES[type];
       const warnings: string[] = [];

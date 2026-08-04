@@ -80,6 +80,22 @@ describe('generatePlan', () => {
     expect(plan.sessions.some((s) => s.type === 'hangboard-max')).toBe(false);
   });
 
+  it('caps weekly sessions and keeps rest days even with daily availability', () => {
+    const everyday: UserState = {
+      ...base,
+      config: {
+        ...base.config,
+        availability: { minutesByWeekday: [120, 120, 120, 120, 120, 120, 120] },
+      },
+    };
+    const plan = generatePlan(everyday, '2026-08-03');
+    const week1 = plan.sessions.filter((s) => s.date >= '2026-08-03' && s.date < '2026-08-10');
+    expect(week1.length).toBeLessThanOrEqual(everyday.config.assessment.weeklySessionsHistorical + 1);
+    expect(week1.length).toBeLessThan(7);
+    const trainedDays = new Set(week1.map((s) => s.date));
+    expect(trainedDays.size).toBe(week1.length);
+  });
+
   it('honors move events', () => {
     const plan0 = generatePlan(base, '2026-08-03');
     const target = plan0.sessions[0];
