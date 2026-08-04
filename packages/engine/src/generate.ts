@@ -1,4 +1,5 @@
 import { QUALITY_SESSIONS, rankWeaknesses } from './assessment.js';
+import { learnProfile } from './learn.js';
 import { TEMPLATES } from './templates.js';
 import type {
   Config,
@@ -139,6 +140,10 @@ export function generatePlan(state: UserState, today: string): Plan {
   }
   const cfg: Config = { ...config, goal, availability };
 
+  const learned = learnProfile(state.events, today);
+  notices.push(...learned.rationale);
+  const fingerGap = learned.fingerGapDays;
+
   const start = config.planStart;
   const endDay = daysBetween(start, today) + HORIZON_DAYS;
   const sessions: Session[] = [];
@@ -154,7 +159,7 @@ export function generatePlan(state: UserState, today: string): Plan {
       if (availability.minutesByWeekday[weekdayOf(date)] >= 30) days.push(date);
     }
     const painActive = daysBetween(today, weekStart) <= 7 ? pain : { finger: false, upperLimb: false };
-    const weeklyCap = Math.max(2, Math.min(6, cfg.assessment.weeklySessionsHistorical + 1));
+    const weeklyCap = Math.max(2, Math.min(6, cfg.assessment.weeklySessionsHistorical + 1 + learned.capDelta));
     const slots = Math.min(days.length, phase === 'deload' ? Math.min(weeklyCap, 4) : weeklyCap);
     const scheduledDays = Array.from({ length: slots }, (_, i) => days[Math.floor((i * days.length) / slots)]);
     const types = orderForSpacing(weeklySessionTypes(cfg, slots, phase, painActive, w === Math.floor(daysBetween(start, today) / 7) ? notices : []));
@@ -167,7 +172,7 @@ export function generatePlan(state: UserState, today: string): Plan {
       let effectiveType = type;
       if (tmpl.fingerLoad && tmpl.intensity === 'high') {
         const last = lastHardFingerByDate[lastHardFingerByDate.length - 1];
-        if (last && daysBetween(last, date) < 2) {
+        if (last && daysBetween(last, date) < fingerGap) {
           effectiveType = 'technique';
           warnings.push('Swapped to technique: hard finger sessions need 48h apart.');
         } else {
@@ -206,7 +211,7 @@ export function generatePlan(state: UserState, today: string): Plan {
         TEMPLATES[o.type].intensity === 'high' &&
         TEMPLATES[s.type].fingerLoad &&
         TEMPLATES[s.type].intensity === 'high' &&
-        Math.abs(daysBetween(o.date, s.date)) < 2,
+        Math.abs(daysBetween(o.date, s.date)) < fingerGap,
     );
     if (conflict) s.warnings.push('Moved within 48h of another hard finger session — treat one as sub-maximal.');
   }
@@ -236,8 +241,15 @@ export function generatePlan(state: UserState, today: string): Plan {
               h.id !== o.id &&
               TEMPLATES[h.type].fingerLoad &&
               TEMPLATES[h.type].intensity === 'high' &&
-              Math.abs(daysBetween(h.date, o.date)) < 2,
-          )),
+              Math.abs(daysBetween(h.date, o.date)) < fingerGap,
+          )) &&
+        !sessions.some(
+          (h) =>
+            h.id !== o.id &&
+            !consumed.has(h.id) &&
+            TEMPLATES[h.type].intensity === 'high' &&
+            Math.abs(daysBetween(h.date, o.date)) <= 1,
+        ),
     );
     if (!candidate) continue;
     consumed.add(candidate.id);

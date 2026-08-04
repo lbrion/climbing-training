@@ -111,6 +111,36 @@ describe('generatePlan', () => {
     expect(plan.notices.join(' ')).toMatch(/rescheduled/);
   });
 
+  it('widens finger spacing to 72h after finger pain', () => {
+    const hurt: UserState = {
+      ...base,
+      events: [{ kind: 'feedback', sessionId: 's-0-0', date: '2026-08-03', completed: true, rpe: 7, pain: { site: 'finger', severity: 1 } }],
+    };
+    const plan = generatePlan(hurt, '2026-08-20');
+    const hardFinger = plan.sessions.filter(
+      (s) => s.date >= '2026-08-20' && TEMPLATES[s.type].fingerLoad && TEMPLATES[s.type].intensity === 'high',
+    );
+    for (let i = 1; i < hardFinger.length; i++) {
+      expect(daysBetween(hardFinger[i - 1].date, hardFinger[i].date)).toBeGreaterThanOrEqual(3);
+    }
+  });
+
+  it('adds a weekly session after three weeks of easy full completion', () => {
+    const fiveDays: UserState = {
+      ...base,
+      config: { ...base.config, availability: { minutesByWeekday: [90, 0, 90, 0, 60, 120, 90] } },
+    };
+    const plan0 = generatePlan(fiveDays, '2026-08-24');
+    const past = plan0.sessions.filter((s) => s.date < '2026-08-24');
+    const events: UserState['events'] = past.map((s) => ({
+      kind: 'feedback', sessionId: s.id, date: s.date, completed: true, rpe: 5, pain: null,
+    }));
+    const plan = generatePlan({ ...fiveDays, events }, '2026-08-24');
+    expect(plan.notices.join(' ')).toMatch(/increased/);
+    const week = plan.sessions.filter((s) => s.date >= '2026-08-31' && s.date < '2026-09-07');
+    expect(week.length).toBe(5);
+  });
+
   it('honors move events', () => {
     const plan0 = generatePlan(base, '2026-08-03');
     const target = plan0.sessions[0];
