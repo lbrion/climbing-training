@@ -144,7 +144,12 @@ export function generatePlan(state: UserState, today: string): Plan {
 
   const learned = learnProfile(state.events, today);
   notices.push(...learned.rationale);
-  const fingerGap = learned.fingerGapDays;
+  const priorFingerInjury =
+    config.assessment.injuryHistory.includes('finger') || config.assessment.injuryHistory.includes('wrist');
+  const fingerGap = priorFingerInjury ? 3 : learned.fingerGapDays;
+  if (priorFingerInjury && learned.fingerGapDays < 3) {
+    notices.push('Past finger/wrist injury: hard finger sessions are kept 72h apart.');
+  }
 
   const start = config.planStart;
   const endDay = daysBetween(start, today) + HORIZON_DAYS;
@@ -203,22 +208,25 @@ export function generatePlan(state: UserState, today: string): Plan {
 
   const byId = new Map(sessions.map((s) => [s.id, s]));
 
-  for (const e of state.events) {
-    if (e.kind !== 'move') continue;
-    const s = byId.get(e.sessionId);
-    if (!s) continue;
-    s.date = e.toDate;
-    const conflict = sessions.some(
-      (o) =>
-        o.id !== s.id &&
-        TEMPLATES[o.type].fingerLoad &&
-        TEMPLATES[o.type].intensity === 'high' &&
-        TEMPLATES[s.type].fingerLoad &&
-        TEMPLATES[s.type].intensity === 'high' &&
-        Math.abs(daysBetween(o.date, s.date)) < fingerGap,
-    );
-    if (conflict) s.warnings.push('Moved within 48h of another hard finger session — treat one as sub-maximal.');
-  }
+  const applyMoves = () => {
+    for (const e of state.events) {
+      if (e.kind !== 'move') continue;
+      const s = byId.get(e.sessionId);
+      if (!s || s.date === e.toDate) continue;
+      s.date = e.toDate;
+      const conflict = sessions.some(
+        (o) =>
+          o.id !== s.id &&
+          TEMPLATES[o.type].fingerLoad &&
+          TEMPLATES[o.type].intensity === 'high' &&
+          TEMPLATES[s.type].fingerLoad &&
+          TEMPLATES[s.type].intensity === 'high' &&
+          Math.abs(daysBetween(o.date, s.date)) < fingerGap,
+      );
+      if (conflict) s.warnings.push('Moved within 48h of another hard finger session — treat one as sub-maximal.');
+    }
+  };
+  applyMoves();
 
   const lastFeedback = new Map<string, { completed: boolean; date: string; actualType?: SessionType | null }>();
   for (const e of state.events) {
@@ -429,6 +437,7 @@ export function generatePlan(state: UserState, today: string): Plan {
       break;
     }
   }
+  applyMoves();
 
   for (const [sessionId, fb] of lastFeedback) {
     if (!fb.completed || fb.actualType == null) continue;

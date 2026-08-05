@@ -72,7 +72,7 @@ const eventSchema = z.discriminatedUnion('kind', [
     kind: z.literal('goal'),
     date: z.string(),
     goal: z.union([
-      z.object({ type: z.literal('grade'), targetGrade: z.number().min(0).max(17), deadlineWeeks: z.number().optional() }),
+      z.object({ type: z.literal('grade'), targetGrade: z.number().min(0).max(17) }),
       z.object({ type: z.literal('skill'), skill: z.enum(['overhang', 'slab', 'dynamic', 'crimps', 'compression', 'endurance']) }),
     ]),
   }),
@@ -126,11 +126,12 @@ app.get('/api/state', (req, res) => {
 app.post('/api/setup', (req, res) => {
   const parsed = configSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+  const existing = db.prepare('SELECT id FROM users WHERE id = ?').get(USER);
   db.prepare('INSERT OR REPLACE INTO users (id, config) VALUES (?, ?)').run(USER, JSON.stringify(parsed.data));
-  db.prepare('DELETE FROM events WHERE user_id = ?').run(USER);
+  if (!existing || req.query.reset === 'true') db.prepare('DELETE FROM events WHERE user_id = ?').run(USER);
   const state = loadState()!;
   const t = today(req);
-  res.json({ configured: true, config: state.config, plan: generatePlan(state, t), metrics: computeMetrics(state, t), events: [] });
+  res.json({ configured: true, config: state.config, plan: generatePlan(state, t), metrics: computeMetrics(state, t), events: state.events });
 });
 
 app.post('/api/events', (req, res) => {

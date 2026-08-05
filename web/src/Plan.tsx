@@ -49,6 +49,7 @@ function SessionCard({
         <span className="mono">{s.durationMin} MIN</span>
         {done === true && <span className="mono done">✓ DONE</span>}
         {done === false && <span className="mono missed">MISSED</span>}
+        {s.hints.length > 0 && <span className="mono hint-flag">TIP</span>}
       </div>
       {done === null && (
         <button

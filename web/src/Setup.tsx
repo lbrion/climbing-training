@@ -40,7 +40,7 @@ export function Setup({ initial, onDone }: { initial?: Config; onDone: (s: AppSt
     setBusy(true);
     setError(null);
     try {
-      onDone(await api.setup({ ...cfg, planStart: todayIso(), assessment: { ...a, date: todayIso() } }));
+      onDone(await api.setup({ ...cfg, planStart: initial?.planStart ?? todayIso(), assessment: { ...a, date: todayIso() } }));
     } catch (e) {
       setError(String(e));
       setBusy(false);

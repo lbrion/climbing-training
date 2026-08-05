@@ -290,6 +290,49 @@ describe('generatePlan', () => {
     expect(week.length).toBeLessThanOrEqual(4);
   });
 
+  it('spaces hard finger sessions 72h apart for climbers with finger injury history', () => {
+    const injured: UserState = {
+      ...base,
+      config: {
+        ...base.config,
+        availability: { minutesByWeekday: [120, 120, 120, 120, 120, 120, 120] },
+        assessment: { ...base.config.assessment, injuryHistory: ['finger'] },
+      },
+    };
+    const plan = generatePlan(injured, '2026-08-03');
+    const hardFinger = plan.sessions.filter(
+      (s) => TEMPLATES[s.type].fingerLoad && TEMPLATES[s.type].intensity === 'high',
+    );
+    for (let i = 1; i < hardFinger.length; i++) {
+      expect(daysBetween(hardFinger[i - 1].date, hardFinger[i].date)).toBeGreaterThanOrEqual(3);
+    }
+    expect(plan.notices.join(' ')).toMatch(/Past finger\/wrist injury/);
+  });
+
+  it('honors moves of recovered sessions', () => {
+    const everyday: UserState = {
+      ...base,
+      config: { ...base.config, availability: { minutesByWeekday: [120, 120, 120, 120, 120, 120, 120] } },
+    };
+    const plan0 = generatePlan(everyday, '2026-08-03');
+    const limit = plan0.sessions.find((s) => s.date === '2026-08-03' && s.type === 'limit-boulder')!;
+    const missedState: UserState = {
+      ...everyday,
+      events: [{ kind: 'feedback', sessionId: limit.id, date: limit.date, completed: false, rpe: null, pain: null }],
+    };
+    const plan1 = generatePlan(missedState, '2026-08-04');
+    const recovered = plan1.sessions.find((s) => s.id === `${limit.id}-r`)!;
+    const movedState: UserState = {
+      ...missedState,
+      events: [
+        ...missedState.events,
+        { kind: 'move', sessionId: recovered.id, fromDate: recovered.date, toDate: '2026-08-09' },
+      ],
+    };
+    const plan2 = generatePlan(movedState, '2026-08-04');
+    expect(plan2.sessions.find((s) => s.id === recovered.id)?.date).toBe('2026-08-09');
+  });
+
   it('honors move events', () => {
     const plan0 = generatePlan(base, '2026-08-03');
     const target = plan0.sessions[0];

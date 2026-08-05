@@ -228,6 +228,9 @@ h3 {
 .done {
   color: var(--mint);
 }
+.hint-flag {
+  color: var(--sky);
+}
 .missed {
   color: var(--ember);
 }

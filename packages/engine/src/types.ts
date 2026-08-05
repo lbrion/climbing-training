@@ -16,7 +16,7 @@ export interface Assessment {
 export type InjurySite = 'finger' | 'elbow' | 'shoulder' | 'wrist' | 'back' | 'knee';
 
 export type Goal =
-  | { type: 'grade'; targetGrade: VGrade; deadlineWeeks?: number }
+  | { type: 'grade'; targetGrade: VGrade }
   | { type: 'skill'; skill: 'overhang' | 'slab' | 'dynamic' | 'crimps' | 'compression' | 'endurance' };
 
 export interface Availability {
