@@ -227,10 +227,10 @@ describe('generatePlan', () => {
       ],
     };
     const plan = generatePlan(state, '2026-08-04');
-    const recovered = plan.sessions.find((s) => s.id === `${limit.id}-r`);
+    const recovered = plan.sessions.find(
+      (s) => s.date >= '2026-08-04' && s.type === 'limit-boulder' && s.warnings.some((w) => w.includes('Recovered')),
+    );
     expect(recovered).toBeDefined();
-    expect(recovered!.type).toBe('limit-boulder');
-    expect(recovered!.date >= '2026-08-04').toBe(true);
     expect(plan.loadStatus.acute7d).toBeGreaterThan(0);
   });
 
@@ -261,6 +261,33 @@ describe('generatePlan', () => {
     expect(shown.title).toBe('Flash bouldering');
     expect(shown.type).toBe('flash-boulder');
     expect(shown.warnings.join(' ')).toMatch(/Planned: Limit bouldering/);
+  });
+
+  it('never builds long training blocks when recoveries stack', () => {
+    const everyday: UserState = {
+      ...base,
+      config: { ...base.config, availability: { minutesByWeekday: [120, 120, 120, 120, 120, 120, 120] } },
+    };
+    const plan0 = generatePlan(everyday, '2026-08-03');
+    const highs = plan0.sessions.filter((s) => s.intensity === 'high' && s.date <= '2026-08-07').slice(0, 2);
+    const events: UserState['events'] = [
+      { kind: 'feedback', sessionId: highs[0].id, date: highs[0].date, completed: true, rpe: 6, pain: null, actualType: 'flash-boulder' },
+      ...(highs[1] ? [{ kind: 'feedback' as const, sessionId: highs[1].id, date: highs[1].date, completed: false, rpe: null, pain: null }] : []),
+    ];
+    const plan = generatePlan({ ...everyday, events }, '2026-08-08');
+    const upcoming = [...new Set(plan.sessions.filter((s) => s.date >= '2026-08-08').map((s) => s.date))].sort();
+    let run = 1;
+    let maxRun = 1;
+    for (let i = 1; i < upcoming.length; i++) {
+      run = daysBetween(upcoming[i - 1], upcoming[i]) === 1 ? run + 1 : 1;
+      maxRun = Math.max(maxRun, run);
+    }
+    expect(maxRun).toBeLessThanOrEqual(3);
+    for (const s of plan.sessions) {
+      expect(s.warnings.join(' ')).not.toMatch(/Shifted to absorb/);
+    }
+    const week = plan.sessions.filter((s) => s.date >= '2026-08-08' && s.date < '2026-08-15');
+    expect(week.length).toBeLessThanOrEqual(4);
   });
 
   it('honors move events', () => {

@@ -152,6 +152,7 @@ export function generatePlan(state: UserState, today: string): Plan {
   const lastHardFingerByDate: string[] = [];
   if (cfg.assessment.lastHardSessionDate) lastHardFingerByDate.push(cfg.assessment.lastHardSessionDate);
 
+  const weeklyCap = Math.max(2, Math.min(6, cfg.assessment.weeklySessionsHistorical + 1 + learned.capDelta));
   const totalWeeks = Math.ceil(endDay / 7) + 1;
   for (let w = 0; w < totalWeeks; w++) {
     const phase = phaseForWeek(w);
@@ -162,7 +163,6 @@ export function generatePlan(state: UserState, today: string): Plan {
       if (availability.minutesByWeekday[weekdayOf(date)] >= 30) days.push(date);
     }
     const painActive = daysBetween(today, weekStart) <= 7 ? pain : { finger: false, upperLimb: false };
-    const weeklyCap = Math.max(2, Math.min(6, cfg.assessment.weeklySessionsHistorical + 1 + learned.capDelta));
     const slots = Math.min(days.length, phase === 'deload' ? Math.min(weeklyCap, 4) : weeklyCap);
     const scheduledDays = Array.from({ length: slots }, (_, i) => days[Math.floor((i * days.length) / slots)]);
     const types = orderForSpacing(weeklySessionTypes(cfg, slots, phase, painActive, w === Math.floor(daysBetween(start, today) / 7) ? notices : []));
@@ -226,6 +226,38 @@ export function generatePlan(state: UserState, today: string): Plan {
   }
   const consumed = new Set<string>();
 
+  const scheduleHealthy = (extraDate?: string): boolean => {
+    const trainDays = new Set(
+      sessions
+        .filter((o) => daysBetween(today, o.date) >= 0 && !lastFeedback.has(o.id))
+        .map((o) => o.date),
+    );
+    if (extraDate) trainDays.add(extraDate);
+    for (const e of state.events) {
+      if (e.kind === 'feedback' && e.completed && daysBetween(e.date, today) >= 0 && daysBetween(e.date, today) <= 6) {
+        trainDays.add(e.date);
+      }
+    }
+
+    const perWeek = new Map<number, number>();
+    for (const d of trainDays) {
+      const w = Math.floor(daysBetween(start, d) / 7);
+      perWeek.set(w, (perWeek.get(w) ?? 0) + 1);
+    }
+    for (const count of perWeek.values()) if (count > weeklyCap) return false;
+
+    for (const d of trainDays) {
+      let run = 1;
+      let cur = d;
+      while (trainDays.has(addDays(cur, 1))) {
+        run++;
+        cur = addDays(cur, 1);
+      }
+      if (run > 3) return false;
+    }
+    return true;
+  };
+
   const dayFree = (date: string) =>
     availability.minutesByWeekday[weekdayOf(date)] >= 30 &&
     phaseForWeek(Math.floor(daysBetween(start, date) / 7)) !== 'deload';
@@ -242,7 +274,7 @@ export function generatePlan(state: UserState, today: string): Plan {
     if (!insertDate) return false;
 
     const movable = sessions
-      .filter((o) => daysBetween(today, o.date) >= 0 && !lastFeedback.has(o.id) && !consumed.has(o.id))
+      .filter((o) => daysBetween(today, o.date) >= 0 && !lastFeedback.has(o.id))
       .sort((a, b) => a.date.localeCompare(b.date));
     const savedDates = new Map(movable.map((o) => [o.id, o.date]));
 
@@ -302,14 +334,20 @@ export function generatePlan(state: UserState, today: string): Plan {
       for (const o of movable) o.date = savedDates.get(o.id)!;
       return false;
     }
+    if (!scheduleHealthy(inserted.date)) {
+      for (const o of movable) o.date = savedDates.get(o.id)!;
+      return false;
+    }
 
     consumed.add(inserted.id);
     sessions.push(inserted);
     byId.set(inserted.id, inserted);
-    for (const o of movable) {
-      if (o.date !== savedDates.get(o.id)) o.warnings.push('Shifted to absorb a recovered session.');
-    }
-    notices.push(`Missed ${missedTmpl.title} was rescheduled to ${insertDate}; later sessions shifted where needed.`);
+    const shifted = movable.filter((o) => o.date !== savedDates.get(o.id)).length;
+    notices.push(
+      shifted > 0
+        ? `Missed ${missedTmpl.title} was rescheduled to ${insertDate}; ${shifted} later session${shifted === 1 ? '' : 's'} shifted.`
+        : `Missed ${missedTmpl.title} was rescheduled to ${insertDate}.`,
+    );
     return true;
   };
 
@@ -367,7 +405,7 @@ export function generatePlan(state: UserState, today: string): Plan {
         target.exercises = missedTmpl.exercises(target.weekPhase, cfg.assessment.maxBoulderGrade);
         target.warnings.push(`Recovered from missed session (replaced ${replacedTitle}).`);
         notices.push(`Missed ${missedTmpl.title} was rescheduled to ${date}.`);
-      } else if (onDate.length === 0) {
+      } else if (onDate.length === 0 && scheduleHealthy(date)) {
         const inserted = {
           id: `${sessionId}-r`,
           date,
