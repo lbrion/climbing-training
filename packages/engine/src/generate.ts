@@ -61,7 +61,7 @@ function recentPain(events: PlanEvent[], today: string): RecentPain {
   return out;
 }
 
-function computeLoad(events: PlanEvent[], sessions: Map<string, Session>, today: string): LoadStatus {
+function computeLoad(events: PlanEvent[], sessions: Map<string, Session>, today: string, planStart: string): LoadStatus {
   let acute = 0;
   let chronic = 0;
   for (const e of events) {
@@ -72,8 +72,10 @@ function computeLoad(events: PlanEvent[], sessions: Map<string, Session>, today:
     if (age >= 0 && age < 7) acute += load;
     if (age >= 0 && age < 28) chronic += load;
   }
-  const chronicWeekly = chronic / 4;
-  const ratio = chronicWeekly > 0 ? acute / chronicWeekly : null;
+  const historyDays = daysBetween(planStart, today);
+  const observedWeeks = Math.min(28, Math.max(7, historyDays + 1)) / 7;
+  const chronicWeekly = chronic / observedWeeks;
+  const ratio = historyDays >= 10 && chronicWeekly > 0 ? acute / chronicWeekly : null;
   return { acute7d: acute, chronic28d: chronic, ratio, capped: ratio !== null && ratio > 1.3 };
 }
 
@@ -390,7 +392,21 @@ export function generatePlan(state: UserState, today: string): Plan {
     }
   }
 
-  const load = computeLoad(state.events, byId, today);
+  for (const [sessionId, fb] of lastFeedback) {
+    if (!fb.completed || fb.actualType == null) continue;
+    const s = byId.get(sessionId);
+    if (!s || s.type === fb.actualType) continue;
+    const t = TEMPLATES[fb.actualType];
+    s.warnings = s.warnings.filter((w) => !w.includes('stimulus moves ahead'));
+    s.warnings.push(`Planned: ${s.title}.`);
+    s.type = fb.actualType;
+    s.title = t.title;
+    s.intensity = t.intensity;
+    s.focus = t.focus;
+    s.exercises = t.exercises(s.weekPhase, cfg.assessment.maxBoulderGrade);
+  }
+
+  const load = computeLoad(state.events, byId, today, start);
   if (load.capped) {
     notices.push('Training load rose quickly (acute:chronic > 1.3). High-intensity sessions this week are capped at moderate effort.');
     for (const s of sessions) {

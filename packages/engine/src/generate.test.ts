@@ -234,6 +234,35 @@ describe('generatePlan', () => {
     expect(plan.loadStatus.acute7d).toBeGreaterThan(0);
   });
 
+  it('does not compute a load ratio in the first days of a plan', () => {
+    const plan0 = generatePlan(base, '2026-08-03');
+    const first = plan0.sessions.find((s) => s.date === '2026-08-03')!;
+    const state: UserState = {
+      ...base,
+      events: [{ kind: 'feedback', sessionId: first.id, date: first.date, completed: true, rpe: 9, pain: null }],
+    };
+    const plan = generatePlan(state, '2026-08-04');
+    expect(plan.loadStatus.ratio).toBeNull();
+    expect(plan.loadStatus.capped).toBe(false);
+    expect(plan.notices.join(' ')).not.toMatch(/load rose quickly/);
+  });
+
+  it('shows the session as what it was actually logged as', () => {
+    const plan0 = generatePlan(base, '2026-08-03');
+    const limit = plan0.sessions.find((s) => s.date === '2026-08-03' && s.type === 'limit-boulder')!;
+    const state: UserState = {
+      ...base,
+      events: [
+        { kind: 'feedback', sessionId: limit.id, date: limit.date, completed: true, rpe: 7, pain: null, actualType: 'flash-boulder' },
+      ],
+    };
+    const plan = generatePlan(state, '2026-08-04');
+    const shown = plan.sessions.find((s) => s.id === limit.id)!;
+    expect(shown.title).toBe('Flash bouldering');
+    expect(shown.type).toBe('flash-boulder');
+    expect(shown.warnings.join(' ')).toMatch(/Planned: Limit bouldering/);
+  });
+
   it('honors move events', () => {
     const plan0 = generatePlan(base, '2026-08-03');
     const target = plan0.sessions[0];
