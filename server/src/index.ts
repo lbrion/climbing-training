@@ -42,6 +42,13 @@ const eventSchema = z.discriminatedUnion('kind', [
     completed: z.boolean(),
     rpe: z.number().min(1).max(10).nullable(),
     pain: painSchema.nullable(),
+    actualType: z
+      .enum([
+        'limit-boulder', 'flash-boulder', 'volume-boulder', 'technique', 'board-power', 'hangboard-max',
+        'hangboard-subhang', 'strength', 'power-endurance', 'aerobic-capacity', 'mobility-prehab', 'rest',
+      ])
+      .nullable()
+      .optional(),
     notes: z.string().optional(),
   }),
   z.object({

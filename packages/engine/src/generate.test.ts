@@ -213,6 +213,27 @@ describe('generatePlan', () => {
     expect(daysBetween('2026-08-02', firstHardFinger!.date)).toBeGreaterThanOrEqual(2);
   });
 
+  it('reschedules the stimulus when a limit session was substituted with easier climbing', () => {
+    const everyday: UserState = {
+      ...base,
+      config: { ...base.config, availability: { minutesByWeekday: [120, 120, 120, 120, 120, 120, 120] } },
+    };
+    const plan0 = generatePlan(everyday, '2026-08-03');
+    const limit = plan0.sessions.find((s) => s.date === '2026-08-03' && s.type === 'limit-boulder')!;
+    const state: UserState = {
+      ...everyday,
+      events: [
+        { kind: 'feedback', sessionId: limit.id, date: limit.date, completed: true, rpe: 7, pain: null, actualType: 'flash-boulder' },
+      ],
+    };
+    const plan = generatePlan(state, '2026-08-04');
+    const recovered = plan.sessions.find((s) => s.id === `${limit.id}-r`);
+    expect(recovered).toBeDefined();
+    expect(recovered!.type).toBe('limit-boulder');
+    expect(recovered!.date >= '2026-08-04').toBe(true);
+    expect(plan.loadStatus.acute7d).toBeGreaterThan(0);
+  });
+
   it('honors move events', () => {
     const plan0 = generatePlan(base, '2026-08-03');
     const target = plan0.sessions[0];

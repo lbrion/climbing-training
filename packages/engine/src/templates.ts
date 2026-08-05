@@ -32,6 +32,22 @@ export const TEMPLATES: Record<SessionType, Template> = {
       { name: 'Cool-down', detail: 'Easy mileage and shoulder care', sets: '10 min' },
     ],
   },
+  'flash-boulder': {
+    type: 'flash-boulder',
+    title: 'Flash bouldering',
+    intensity: 'medium',
+    baseDurationMin: 75,
+    focus: 'Onsight reading and first-try execution near your flash grade',
+    needs: { gym: true },
+    minGrade: 1,
+    minExperienceYears: 0,
+    fingerLoad: true,
+    exercises: (phase, grade) => [
+      { name: 'Warm-up', detail: 'Progressive problems, rehearse reading sequences from the ground', sets: '15 min' },
+      { name: 'Flash attempts', detail: `Fresh problems at ${g(grade, -2)}–${g(grade, -1)}, one genuine attempt each, full rest`, sets: '8–12 problems' },
+      { name: 'Review', detail: 'Repeat two failed flashes to extract the lesson', sets: '2 problems' },
+    ],
+  },
   'volume-boulder': {
     type: 'volume-boulder',
     title: 'Volume bouldering',

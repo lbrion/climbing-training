@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import type { InjurySite, Session } from '@climb/engine';
+import { TEMPLATES, type InjurySite, type Session, type SessionType } from '@climb/engine';
 import { api, type AppState } from './api.js';
 
 const SITES: InjurySite[] = ['finger', 'wrist', 'elbow', 'shoulder', 'back', 'knee'];
+const LOGGABLE_TYPES = (Object.keys(TEMPLATES) as SessionType[]).filter((t) => t !== 'rest');
 
 export function SessionSheet({
   session,
@@ -16,6 +17,7 @@ export function SessionSheet({
   onUpdate: (s: AppState) => void;
 }) {
   const [completed, setCompleted] = useState(true);
+  const [actualType, setActualType] = useState<SessionType | ''>('');
   const [rpe, setRpe] = useState(6);
   const [painSite, setPainSite] = useState<InjurySite | ''>('');
   const [painSeverity, setPainSeverity] = useState<1 | 2 | 3>(1);
@@ -31,6 +33,7 @@ export function SessionSheet({
       completed,
       rpe: completed ? rpe : null,
       pain: painSite ? { site: painSite, severity: painSeverity } : null,
+      actualType: completed && actualType && actualType !== session.type ? actualType : null,
     });
     onUpdate(next);
   };
@@ -71,6 +74,19 @@ export function SessionSheet({
             Missed
           </button>
         </div>
+        {completed && (
+          <label>
+            What did you actually do?
+            <select value={actualType} onChange={(e) => setActualType(e.target.value as SessionType | '')}>
+              <option value="">As planned — {session.title}</option>
+              {LOGGABLE_TYPES.filter((t) => t !== session.type).map((t) => (
+                <option key={t} value={t}>
+                  {TEMPLATES[t].title}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         {completed && (
           <label>
             Effort (RPE {rpe})

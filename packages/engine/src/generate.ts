@@ -218,9 +218,9 @@ export function generatePlan(state: UserState, today: string): Plan {
     if (conflict) s.warnings.push('Moved within 48h of another hard finger session — treat one as sub-maximal.');
   }
 
-  const lastFeedback = new Map<string, { completed: boolean; date: string }>();
+  const lastFeedback = new Map<string, { completed: boolean; date: string; actualType?: SessionType | null }>();
   for (const e of state.events) {
-    if (e.kind === 'feedback') lastFeedback.set(e.sessionId, { completed: e.completed, date: e.date });
+    if (e.kind === 'feedback') lastFeedback.set(e.sessionId, { completed: e.completed, date: e.date, actualType: e.actualType });
   }
   const consumed = new Set<string>();
 
@@ -312,9 +312,18 @@ export function generatePlan(state: UserState, today: string): Plan {
   };
 
   for (const [sessionId, fb] of lastFeedback) {
-    if (fb.completed || daysBetween(fb.date, today) > 5) continue;
+    if (daysBetween(fb.date, today) > 5) continue;
     const missedSession = byId.get(sessionId);
     if (!missedSession || TEMPLATES[missedSession.type].intensity !== 'high') continue;
+    const substituted =
+      fb.completed &&
+      fb.actualType != null &&
+      fb.actualType !== missedSession.type &&
+      TEMPLATES[fb.actualType].intensity !== 'high';
+    if (fb.completed && !substituted) continue;
+    if (substituted) {
+      missedSession.warnings.push(`Logged as ${TEMPLATES[fb.actualType!].title} — the ${TEMPLATES[missedSession.type].title} stimulus moves ahead.`);
+    }
     const missedTmpl = TEMPLATES[missedSession.type];
     if (tryShiftRecovery(missedSession, missedTmpl)) continue;
     for (let off = 0; off < 5; off++) {
@@ -410,9 +419,10 @@ export function generatePlan(state: UserState, today: string): Plan {
     if (daysBetween(e.date, today) > 45 || daysBetween(e.date, today) < 0) continue;
     const s = byId.get(e.sessionId);
     if (!s) continue;
-    const arr = rpeByType.get(s.type) ?? [];
+    const doneType = e.actualType ?? s.type;
+    const arr = rpeByType.get(doneType) ?? [];
     arr.push(e.rpe);
-    rpeByType.set(s.type, arr);
+    rpeByType.set(doneType, arr);
   }
   for (const [type, arr] of rpeByType) {
     if (arr.length < 3) continue;
