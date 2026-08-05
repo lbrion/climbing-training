@@ -520,6 +520,119 @@ legend {
   background: var(--ochre);
 }
 
+.stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+.stat {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.stat.wide {
+  grid-column: 1 / -1;
+}
+.stat-label {
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--muted);
+}
+.stat-value {
+  font-family: var(--display);
+  font-size: 30px;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+.stat-sub {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--muted);
+}
+.bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 14px;
+  margin-top: 8px;
+  height: 66px;
+}
+.bar-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  flex: 1;
+  height: 100%;
+}
+.bar {
+  width: 100%;
+  max-width: 44px;
+  background: var(--mint);
+  border-radius: 6px 6px 2px 2px;
+  opacity: 0.85;
+}
+.bar-label {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--muted);
+}
+.type-counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 6px;
+}
+.type-count {
+  font-size: 13px;
+  color: var(--muted);
+  background: var(--surface2);
+  border-radius: 999px;
+  padding: 5px 11px;
+}
+.type-count strong {
+  color: var(--chalk);
+}
+.card.history {
+  cursor: default;
+}
+.card.history.was-missed,
+.card.history.unlogged {
+  opacity: 0.65;
+}
+.note {
+  margin: 10px 0 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--chalk);
+  background: var(--surface2);
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+textarea {
+  font: inherit;
+  width: 100%;
+  margin-top: 7px;
+  padding: 11px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--chalk);
+  resize: vertical;
+}
+textarea:focus-visible {
+  outline: 2px solid var(--mint);
+  outline-offset: 1px;
+}
 .sheet-backdrop {
   position: fixed;
   inset: 0;

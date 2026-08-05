@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { Session } from '@climb/engine';
 import { api, type AppState } from './api.js';
+import { HistoryView } from './History.js';
 
 const PHASE_LABEL: Record<string, string> = {
   base: 'Base',
@@ -24,7 +25,7 @@ function weekdayMon0(iso: string): number {
   return (new Date(iso + 'T00:00:00Z').getUTCDay() + 6) % 7;
 }
 
-type View = 'list' | 'calendar';
+type View = 'list' | 'calendar' | 'history';
 
 function SessionCard({
   s,
@@ -148,7 +149,12 @@ export function PlanView({
         <button className={view === 'calendar' ? 'seg on' : 'seg'} onClick={() => setViewPersist('calendar')}>
           Calendar
         </button>
+        <button className={view === 'history' ? 'seg on' : 'seg'} onClick={() => setViewPersist('history')}>
+          History
+        </button>
       </div>
+
+      {view === 'history' && <HistoryView state={state} />}
 
       {view === 'list' && (
         <div className="route">

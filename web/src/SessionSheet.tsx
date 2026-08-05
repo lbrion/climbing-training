@@ -19,6 +19,8 @@ export function SessionSheet({
   const [completed, setCompleted] = useState(true);
   const [actualType, setActualType] = useState<SessionType | ''>('');
   const [rpe, setRpe] = useState(6);
+  const [topGrade, setTopGrade] = useState<number | ''>('');
+  const [notes, setNotes] = useState('');
   const [painSite, setPainSite] = useState<InjurySite | ''>('');
   const [painSeverity, setPainSeverity] = useState<1 | 2 | 3>(1);
   const [moveTo, setMoveTo] = useState(session.date);
@@ -34,6 +36,8 @@ export function SessionSheet({
       rpe: completed ? rpe : null,
       pain: painSite ? { site: painSite, severity: painSeverity } : null,
       actualType: completed && actualType && actualType !== session.type ? actualType : null,
+      topGrade: completed && topGrade !== '' ? topGrade : null,
+      notes: notes.trim() || undefined,
     });
     onUpdate(next);
   };
@@ -93,6 +97,19 @@ export function SessionSheet({
             <input type="range" min={1} max={10} value={rpe} onChange={(e) => setRpe(Number(e.target.value))} />
           </label>
         )}
+        {completed && (
+          <label>
+            Hardest send today (optional)
+            <select value={topGrade} onChange={(e) => setTopGrade(e.target.value === '' ? '' : +e.target.value)}>
+              <option value="">Not tracked</option>
+              {Array.from({ length: 18 }, (_, i) => (
+                <option key={i} value={i}>
+                  V{i}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         <label>
           Any pain?
           <select value={painSite} onChange={(e) => setPainSite(e.target.value as InjurySite | '')}>
@@ -114,6 +131,15 @@ export function SessionSheet({
             </select>
           </label>
         )}
+        <label>
+          Notes (optional)
+          <textarea
+            rows={3}
+            placeholder="Conditions, sends, how it felt…"
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+          />
+        </label>
         <button className="primary" disabled={busy} onClick={submitFeedback}>
           Save feedback
         </button>

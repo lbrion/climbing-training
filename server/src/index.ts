@@ -4,7 +4,7 @@ import path from 'node:path';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
-import { generatePlan, type PlanEvent, type UserState } from '@climb/engine';
+import { computeMetrics, generatePlan, type PlanEvent, type UserState } from '@climb/engine';
 
 const dbPath = process.env.DB_PATH ?? './data/climb.db';
 fs.mkdirSync(path.dirname(dbPath), { recursive: true });
@@ -49,7 +49,8 @@ const eventSchema = z.discriminatedUnion('kind', [
       ])
       .nullable()
       .optional(),
-    notes: z.string().optional(),
+    topGrade: z.number().min(0).max(17).nullable().optional(),
+    notes: z.string().max(2000).optional(),
   }),
   z.object({
     kind: z.literal('readiness'),
@@ -109,14 +110,17 @@ const configSchema = z.object({
 const app = express();
 app.use(express.json());
 
-function today(): string {
+function today(req: express.Request): string {
+  const q = req.query.today;
+  if (typeof q === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(q)) return q;
   return new Date().toISOString().slice(0, 10);
 }
 
-app.get('/api/state', (_req, res) => {
+app.get('/api/state', (req, res) => {
   const state = loadState();
   if (!state) return res.json({ configured: false });
-  res.json({ configured: true, config: state.config, plan: generatePlan(state, today()), events: state.events });
+  const t = today(req);
+  res.json({ configured: true, config: state.config, plan: generatePlan(state, t), metrics: computeMetrics(state, t), events: state.events });
 });
 
 app.post('/api/setup', (req, res) => {
@@ -125,7 +129,8 @@ app.post('/api/setup', (req, res) => {
   db.prepare('INSERT OR REPLACE INTO users (id, config) VALUES (?, ?)').run(USER, JSON.stringify(parsed.data));
   db.prepare('DELETE FROM events WHERE user_id = ?').run(USER);
   const state = loadState()!;
-  res.json({ configured: true, config: state.config, plan: generatePlan(state, today()), events: [] });
+  const t = today(req);
+  res.json({ configured: true, config: state.config, plan: generatePlan(state, t), metrics: computeMetrics(state, t), events: [] });
 });
 
 app.post('/api/events', (req, res) => {
@@ -135,7 +140,8 @@ app.post('/api/events', (req, res) => {
   if (!state) return res.status(409).json({ error: 'not configured' });
   db.prepare('INSERT INTO events (user_id, payload) VALUES (?, ?)').run(USER, JSON.stringify(parsed.data));
   const next = loadState()!;
-  res.json({ configured: true, config: next.config, plan: generatePlan(next, today()), events: next.events });
+  const t = today(req);
+  res.json({ configured: true, config: next.config, plan: generatePlan(next, t), metrics: computeMetrics(next, t), events: next.events });
 });
 
 const here = path.dirname(fileURLToPath(import.meta.url));

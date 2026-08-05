@@ -1,14 +1,12 @@
 import { useState } from 'react';
 import type { Config, Goal, InjurySite } from '@climb/engine';
-import { api, type AppState } from './api.js';
+import { api, localToday, type AppState } from './api.js';
 
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const SITES: InjurySite[] = ['finger', 'wrist', 'elbow', 'shoulder', 'back', 'knee'];
 const SKILLS = ['overhang', 'slab', 'dynamic', 'crimps', 'compression', 'endurance'] as const;
 
-function todayIso(): string {
-  return new Date().toISOString().slice(0, 10);
-}
+const todayIso = localToday;
 
 const defaults: Config = {
   assessment: {
