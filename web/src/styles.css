@@ -605,8 +605,8 @@ legend {
 .type-count strong {
   color: var(--chalk);
 }
-.card.history {
-  cursor: default;
+.card.history.loggable {
+  cursor: pointer;
 }
 .card.history.was-missed,
 .card.history.unlogged {

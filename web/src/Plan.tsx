@@ -155,7 +155,7 @@ export function PlanView({
         </button>
       </div>
 
-      {view === 'history' && <HistoryView state={state} />}
+      {view === 'history' && <HistoryView state={state} onOpen={onOpen} />}
 
       {view === 'list' && (
         <div className="route">

@@ -1,4 +1,4 @@
-import type { PlanEvent } from '@climb/engine';
+import type { PlanEvent, Session } from '@climb/engine';
 import type { AppState } from './api.js';
 
 function fmtDay(iso: string): string {
@@ -7,7 +7,7 @@ function fmtDay(iso: string): string {
 
 type Feedback = Extract<PlanEvent, { kind: 'feedback' }>;
 
-export function HistoryView({ state }: { state: AppState }) {
+export function HistoryView({ state, onOpen }: { state: AppState; onOpen: (s: Session) => void }) {
   const plan = state.plan!;
   const metrics = state.metrics;
   const today = plan.generatedFor;
@@ -69,7 +69,11 @@ export function HistoryView({ state }: { state: AppState }) {
       {past.map((s) => {
         const fb = lastFeedback.get(s.id);
         return (
-          <div key={s.id} className={`card history ${fb?.completed ? '' : fb ? 'was-missed' : 'unlogged'}`}>
+          <div
+            key={s.id}
+            className={`card history loggable ${fb?.completed ? '' : fb ? 'was-missed' : 'unlogged'}`}
+            onClick={() => onOpen(s)}
+          >
             <div className="card-top">
               <span className="title">{s.title}</span>
               <span className="phase">{fmtDay(s.date)}</span>
@@ -77,7 +81,7 @@ export function HistoryView({ state }: { state: AppState }) {
             <div className="card-sub">
               {fb?.completed && <span className="mono done">✓ DONE</span>}
               {fb && !fb.completed && <span className="mono missed">MISSED</span>}
-              {!fb && <span className="mono">NOT LOGGED</span>}
+              {!fb && <span className="mono">TAP TO LOG</span>}
               {fb?.rpe != null && <span className="mono">RPE {fb.rpe}</span>}
               {fb?.topGrade != null && <span className="mono done">V{fb.topGrade}</span>}
               {fb?.pain && (
