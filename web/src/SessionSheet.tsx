@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { TEMPLATES, type InjurySite, type Session, type SessionType } from '@climb/engine';
 import { api, type AppState } from './api.js';
 
@@ -25,6 +25,23 @@ export function SessionSheet({
   const [painSeverity, setPainSeverity] = useState<1 | 2 | 3>(1);
   const [moveTo, setMoveTo] = useState(session.date);
   const [busy, setBusy] = useState(false);
+  const sheetRef = useRef<HTMLDivElement>(null);
+  const startY = useRef<number | null>(null);
+  const [dragY, setDragY] = useState(0);
+
+  const onTouchStart = (e: React.TouchEvent) => {
+    startY.current = sheetRef.current && sheetRef.current.scrollTop <= 0 ? e.touches[0].clientY : null;
+  };
+  const onTouchMove = (e: React.TouchEvent) => {
+    if (startY.current === null) return;
+    const dy = e.touches[0].clientY - startY.current;
+    if (dy > 0) setDragY(dy);
+  };
+  const onTouchEnd = () => {
+    if (dragY > 90) onClose();
+    else setDragY(0);
+    startY.current = null;
+  };
 
   const submitFeedback = async () => {
     setBusy(true);
@@ -50,7 +67,15 @@ export function SessionSheet({
 
   return (
     <div className="sheet-backdrop" onClick={onClose}>
-      <div className="sheet" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="sheet"
+        ref={sheetRef}
+        onClick={(e) => e.stopPropagation()}
+        onTouchStart={onTouchStart}
+        onTouchMove={onTouchMove}
+        onTouchEnd={onTouchEnd}
+        style={dragY ? { transform: `translateY(${dragY}px)`, transition: 'none' } : undefined}
+      >
         <div className="sheet-handle" />
         <h2>{session.title}</h2>
         <p className="focus">{session.focus}</p>
