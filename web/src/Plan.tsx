@@ -126,23 +126,30 @@ export function PlanView({
           Weekly load ratio {plan.loadStatus.ratio.toFixed(2)} {plan.loadStatus.capped ? '(capped)' : ''}
         </div>
       )}
-      {!(state.events ?? []).some((e) => e.kind === 'readiness' && e.date === today) &&
-        (byDate.get(today)?.length ?? 0) > 0 && (
-          <div className="readiness">
-            <span>How do you feel today?</span>
-            <div className="row">
-              <button className="seg" onClick={() => logReadiness(3)}>
-                Fresh
-              </button>
-              <button className="seg" onClick={() => logReadiness(2)}>
-                Normal
-              </button>
-              <button className="seg" onClick={() => logReadiness(1)}>
-                Heavy
-              </button>
-            </div>
+      {(byDate.get(today)?.length ?? 0) > 0 && (
+        <div className="readiness">
+          <span>How do you feel today?</span>
+          <div className="row">
+            {(
+              [
+                [3, 'Fresh'],
+                [2, 'Normal'],
+                [1, 'Heavy'],
+              ] as const
+            ).map(([level, label]) => {
+              const current = [...(state.events ?? [])]
+                .reverse()
+                .find((e) => e.kind === 'readiness' && e.date === today);
+              const on = current && current.kind === 'readiness' && current.level === level;
+              return (
+                <button key={level} className={on ? 'seg on' : 'seg'} onClick={() => logReadiness(level)}>
+                  {label}
+                </button>
+              );
+            })}
           </div>
-        )}
+        </div>
+      )}
       <div className="row viewtoggle">
         <button className={view === 'list' ? 'seg on' : 'seg'} onClick={() => setViewPersist('list')}>
           List

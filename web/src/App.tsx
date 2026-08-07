@@ -1,4 +1,12 @@
 import { useEffect, useState } from 'react';
+import { registerSW } from 'virtual:pwa-register';
+
+declare const __BUILD_ID__: string;
+
+registerSW({ immediate: true });
+setInterval(() => {
+  navigator.serviceWorker?.getRegistration().then((r) => r?.update());
+}, 15 * 60 * 1000);
 import type { Session } from '@climb/engine';
 import { api, type AppState } from './api.js';
 import { Setup } from './Setup.js';
@@ -49,6 +57,7 @@ export function App() {
         </button>
       </header>
       <PlanView state={state} onOpen={setOpen} onUpdate={setState} />
+      <footer className="buildid">build {__BUILD_ID__}</footer>
       {open && (
         <SessionSheet
           session={open}

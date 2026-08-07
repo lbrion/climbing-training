@@ -39,12 +39,14 @@ export function learnProfile(events: PlanEvent[], today: string): LearnedProfile
       daysBetween(e.date, today) <= 28,
   );
 
-  let todayReadiness: 1 | 2 | 3 | null = null;
-  let heavyCount14 = 0;
+  const readinessByDate = new Map<string, 1 | 2 | 3>();
   for (const e of events) {
-    if (e.kind !== 'readiness') continue;
-    if (e.date === today) todayReadiness = e.level;
-    if (e.level === 1 && daysBetween(e.date, today) >= 0 && daysBetween(e.date, today) <= 14) heavyCount14++;
+    if (e.kind === 'readiness') readinessByDate.set(e.date, e.level);
+  }
+  const todayReadiness = readinessByDate.get(today) ?? null;
+  let heavyCount14 = 0;
+  for (const [date, level] of readinessByDate) {
+    if (level === 1 && daysBetween(date, today) >= 0 && daysBetween(date, today) <= 14) heavyCount14++;
   }
 
   let fingerGapDays: 2 | 3 = 2;

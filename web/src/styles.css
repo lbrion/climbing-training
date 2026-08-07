@@ -706,6 +706,14 @@ textarea:focus-visible {
   color: var(--muted);
 }
 
+.buildid {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--line);
+  text-align: center;
+  padding: 24px 0 4px;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .sheet {
     animation: none;
