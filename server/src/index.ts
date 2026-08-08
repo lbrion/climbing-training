@@ -17,6 +17,11 @@ db.exec(`
     user_id TEXT NOT NULL,
     payload TEXT NOT NULL
   );
+  CREATE TABLE IF NOT EXISTS fit_files (
+    external_id TEXT PRIMARY KEY,
+    bytes BLOB NOT NULL,
+    imported_at TEXT NOT NULL
+  );
 `);
 
 const USER = 'me';
@@ -235,7 +240,6 @@ function parseFit(buf: Buffer): { event: ImportedActivity; report: Record<string
     hrSeries,
   };
 
-  const splits = messages.splitMesgs ?? [];
   const report = {
     date,
     sport: event.sport,
@@ -243,8 +247,14 @@ function parseFit(buf: Buffer): { event: ImportedActivity; report: Record<string
     avgHr,
     maxHr,
     messageCounts: Object.fromEntries(Object.entries(messages).map(([k, v]) => [k, Array.isArray(v) ? v.length : 1])),
-    splitTypes: splits.map((s) => s.splitType),
-    splitSample: splits.slice(0, 3),
+    splitTypes: (messages.splitMesgs ?? []).map((s) => s.splitType),
+    // First few messages of every type except the bulky record stream — this is where vendor-specific
+    // climb fields (grades, sends/attempts) will show up when present.
+    mesgSamples: Object.fromEntries(
+      Object.entries(messages)
+        .filter(([k, v]) => Array.isArray(v) && v.length > 0 && k !== 'recordMesgs')
+        .map(([k, v]) => [k, (v as unknown[]).slice(0, 3)]),
+    ),
     decodeErrors: errors.map(String),
   };
   return { event, report };
@@ -266,6 +276,12 @@ app.post('/api/import/fit', express.raw({ type: () => true, limit: '30mb' }), (r
   const valid = eventSchema.safeParse(parsed.event);
   if (!valid.success) return res.status(400).json({ error: valid.error.flatten() });
 
+  // Keep the original file so activities can be re-parsed as decoding improves (vendor climb fields etc.).
+  db.prepare('INSERT OR REPLACE INTO fit_files (external_id, bytes, imported_at) VALUES (?, ?, ?)').run(
+    parsed.event.externalId,
+    req.body,
+    new Date().toISOString(),
+  );
   const duplicate = state.events.some((e) => e.kind === 'imported-activity' && e.externalId === parsed.event.externalId);
   if (!duplicate) db.prepare('INSERT INTO events (user_id, payload) VALUES (?, ?)').run(USER, JSON.stringify(valid.data));
 
@@ -279,6 +295,25 @@ app.post('/api/import/fit', express.raw({ type: () => true, limit: '30mb' }), (r
     events: next.events,
     import: { skipped: duplicate, ...parsed.report },
   });
+});
+
+// Diagnostic: re-parse every stored FIT file with the current parser and return the reports.
+// Used to map vendor-specific fields (COROS/Garmin per-climb data) from real files.
+app.get('/api/import/reports', (_req, res) => {
+  const rows = db.prepare('SELECT external_id, bytes, imported_at FROM fit_files ORDER BY imported_at').all() as {
+    external_id: string;
+    bytes: Buffer;
+    imported_at: string;
+  }[];
+  const reports = rows.map((r) => {
+    try {
+      const parsed = parseFit(r.bytes);
+      return { externalId: r.external_id, importedAt: r.imported_at, ...('error' in parsed ? parsed : parsed.report) };
+    } catch (e) {
+      return { externalId: r.external_id, importedAt: r.imported_at, error: String(e) };
+    }
+  });
+  res.json({ count: reports.length, reports });
 });
 
 app.post('/api/events', (req, res) => {
