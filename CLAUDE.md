@@ -104,3 +104,7 @@ CI (`.github/workflows/ci.yml`) runs `check` + `build` on every PR and push to `
 - Dates are ISO `YYYY-MM-DD` strings everywhere; use `addDays`/`daysBetween` from `generate.ts`, don't do Date math inline.
 - V-grades are plain numbers (0–17) typed as `VGrade`.
 - No new runtime dependencies in `packages/engine`, ever. Be reluctant elsewhere — the whole app currently needs only express, better-sqlite3, zod, react.
+
+## Git workflow
+
+Solo project: commit and push straight to `main` — no pull requests (owner-approved standing preference). If a session was started on a designated `claude/*` branch, still land the work on `main`. Because every push to `main` deploys to Railway, always run `npm run check` and `npm run build` locally before pushing.
