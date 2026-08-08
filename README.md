@@ -23,7 +23,8 @@ server/src/
 web/src/
   App.tsx        screen routing and top bar
   Plan.tsx       list/calendar views          SessionSheet.tsx  feedback + move sheet
-  Setup.tsx      assessment wizard            History.tsx       stats and past sessions
+  Setup.tsx      onboarding wizard            History.tsx       stats and past sessions
+  Settings.tsx   settings menu (goal, availability, equipment, assessment re-run)
   api.ts         all server communication     styles.css        all styling
 ```
 

@@ -507,5 +507,7 @@ export function generatePlan(state: UserState, today: string): Plan {
     sessions: visible,
     loadStatus: load,
     notices,
+    goal: cfg.goal,
+    availability: cfg.availability,
   };
 }

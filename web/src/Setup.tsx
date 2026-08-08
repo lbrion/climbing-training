@@ -27,7 +27,7 @@ const defaults: Config = {
   planStart: todayIso(),
 };
 
-export function Setup({ initial, onDone }: { initial?: Config; onDone: (s: AppState) => void }) {
+export function Setup({ initial, onDone, onCancel }: { initial?: Config; onDone: (s: AppState) => void; onCancel?: () => void }) {
   const [cfg, setCfg] = useState<Config>(initial ?? defaults);
   const [step, setStep] = useState(0);
   const [busy, setBusy] = useState(false);
@@ -47,7 +47,7 @@ export function Setup({ initial, onDone }: { initial?: Config; onDone: (s: AppSt
     }
   };
 
-  const steps = [
+  const allSteps = [
     <section key="about">
       <h2>Assessment</h2>
       <label>
@@ -224,13 +224,20 @@ export function Setup({ initial, onDone }: { initial?: Config; onDone: (s: AppSt
       </fieldset>
     </section>,
   ];
+  // Re-running from Settings only revisits the assessment; goal, availability, and equipment are edited in Settings itself.
+  const steps = initial ? allSteps.slice(0, 2) : allSteps;
 
   return (
     <div className="screen setup">
       <header className="topbar">
         <h1>
-          Setup {step + 1}/{steps.length}
+          {initial ? 'Assessment' : 'Setup'} {step + 1}/{steps.length}
         </h1>
+        {onCancel && (
+          <button className="ghost" onClick={onCancel} disabled={busy}>
+            Cancel
+          </button>
+        )}
       </header>
       {steps[step]}
       {error && <div className="notice">{error}</div>}
@@ -246,7 +253,7 @@ export function Setup({ initial, onDone }: { initial?: Config; onDone: (s: AppSt
           </button>
         ) : (
           <button className="primary" onClick={submit} disabled={busy}>
-            {busy ? 'Building plan…' : 'Build my plan'}
+            {busy ? 'Building plan…' : initial ? 'Save assessment' : 'Build my plan'}
           </button>
         )}
       </div>

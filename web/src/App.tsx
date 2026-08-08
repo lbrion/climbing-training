@@ -13,6 +13,7 @@ setInterval(
 import type { Session } from '@climb/engine';
 import { api, type AppState } from './api.js';
 import { Setup } from './Setup.js';
+import { Settings } from './Settings.js';
 import { PlanView } from './Plan.js';
 import { SessionSheet } from './SessionSheet.js';
 
@@ -20,7 +21,7 @@ export function App() {
   const [state, setState] = useState<AppState | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [open, setOpen] = useState<Session | null>(null);
-  const [showSetup, setShowSetup] = useState(false);
+  const [overlay, setOverlay] = useState<'none' | 'settings' | 'assessment'>('none');
 
   useEffect(() => {
     api
@@ -32,14 +33,31 @@ export function App() {
   if (error) return <div className="screen center">Could not reach server. {error}</div>;
   if (!state) return <div className="screen center">Loading…</div>;
 
-  if (!state.configured || showSetup) {
+  if (!state.configured) {
+    return <Setup onDone={setState} />;
+  }
+
+  if (overlay === 'assessment') {
     return (
       <Setup
         initial={state.config}
+        onCancel={() => setOverlay('settings')}
         onDone={(next) => {
           setState(next);
-          setShowSetup(false);
+          setOverlay('settings');
         }}
+      />
+    );
+  }
+
+  if (overlay === 'settings') {
+    return (
+      <Settings
+        config={state.config!}
+        plan={state.plan!}
+        onClose={() => setOverlay('none')}
+        onUpdate={setState}
+        onRerunAssessment={() => setOverlay('assessment')}
       />
     );
   }
@@ -58,7 +76,7 @@ export function App() {
             </span>
           )}
         </div>
-        <button className="ghost" onClick={() => setShowSetup(true)}>
+        <button className="ghost" onClick={() => setOverlay('settings')}>
           Settings
         </button>
       </header>

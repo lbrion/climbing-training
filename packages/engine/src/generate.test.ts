@@ -369,4 +369,19 @@ describe('generatePlan', () => {
     }
     expect(plan.loadStatus.ratio).not.toBeNull();
   });
+
+  it('exposes the effective goal and availability, reflecting later events', () => {
+    const noEvents = generatePlan(base, '2026-08-03');
+    expect(noEvents.goal).toEqual(base.config.goal);
+    expect(noEvents.availability).toEqual(base.config.availability);
+
+    const events: UserState['events'] = [
+      { kind: 'goal', date: '2026-08-05', goal: { type: 'skill', skill: 'endurance' } },
+      { kind: 'availability', date: '2026-08-06', availability: { minutesByWeekday: [0, 60, 0, 60, 0, 60, 0] } },
+      { kind: 'goal', date: '2026-08-20', goal: { type: 'grade', targetGrade: 9 } },
+    ];
+    const plan = generatePlan({ ...base, events }, '2026-08-10');
+    expect(plan.goal).toEqual({ type: 'skill', skill: 'endurance' });
+    expect(plan.availability).toEqual({ minutesByWeekday: [0, 60, 0, 60, 0, 60, 0] });
+  });
 });

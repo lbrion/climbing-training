@@ -110,6 +110,9 @@ export interface Plan {
   sessions: Session[];
   loadStatus: LoadStatus;
   notices: string[];
+  /** Goal and availability the plan was built with: config values overridden by the latest goal/availability events. */
+  goal: Goal;
+  availability: Availability;
 }
 
 export interface LoadStatus {

@@ -313,6 +313,9 @@ button.primary {
   width: 100%;
   margin-top: 12px;
 }
+button:disabled {
+  opacity: 0.45;
+}
 button.ghost {
   background: transparent;
   border: none;
@@ -447,6 +450,17 @@ legend {
   color: var(--muted);
   font-size: 13px;
   line-height: 1.5;
+}
+.settings section {
+  padding-bottom: 22px;
+  margin-bottom: 6px;
+  border-bottom: 1px solid var(--line);
+}
+.settings section:last-of-type {
+  border-bottom: none;
+}
+.settings section > button {
+  margin-top: 8px;
 }
 .setup h2 {
   font-family: var(--display);

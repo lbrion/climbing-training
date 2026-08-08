@@ -63,7 +63,8 @@ CI (`.github/workflows/ci.yml`) runs `check` + `build` on every PR and push to `
 | Screen routing, top bar, service-worker registration            | `App.tsx`                                                                                          |
 | Plan list / calendar views, session cards, quick-miss           | `Plan.tsx`                                                                                         |
 | Session detail sheet: feedback form, RPE, pain, move/reschedule | `SessionSheet.tsx`                                                                                 |
-| Assessment/settings wizard                                      | `Setup.tsx`                                                                                        |
+| Settings menu: goal, availability, equipment                    | `Settings.tsx` — goal/availability save as events; equipment re-posts the config                   |
+| Onboarding wizard and assessment re-run                         | `Setup.tsx` — all four steps on first run; assessment-only when re-run from Settings               |
 | History view: stats, past sessions, retro-logging               | `History.tsx`                                                                                      |
 | Server communication and the `AppState` shape                   | `api.ts` — all fetches go through here; components never call `fetch` directly                     |
 | All styling                                                     | `styles.css` — plain CSS, class-based, no CSS-in-JS or frameworks; dark theme variables at the top |
