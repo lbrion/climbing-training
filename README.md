@@ -8,6 +8,27 @@ A mobile-first PWA that generates and adapts bouldering training plans determini
 - `server` is an Express API with SQLite persistence. It stores the config and an append-only event log, validates input with zod at the boundary, and serves the built web app.
 - `web` is a Vite React PWA: assessment wizard, 14-day plan view, session detail with feedback and move controls.
 
+## Repository map
+
+```
+packages/engine/src/
+  types.ts       shared data shapes (Config, Session, PlanEvent, Plan) — source of truth
+  templates.ts   session content: exercises, durations, equipment/grade gates
+  assessment.ts  strength benchmarks, weakness ranking, goal → session mapping
+  generate.ts    the planner: periodization, safety spacing, recovery, load caps
+  learn.ts       adaptation from the event log (finger gap, weekly cap, readiness)
+  metrics.ts     history stats (PRs, completion %, weekly load)
+server/src/
+  index.ts       Express routes, zod schemas, SQLite storage — the only impure layer
+web/src/
+  App.tsx        screen routing and top bar
+  Plan.tsx       list/calendar views          SessionSheet.tsx  feedback + move sheet
+  Setup.tsx      assessment wizard            History.tsx       stats and past sessions
+  api.ts         all server communication     styles.css        all styling
+```
+
+See `CLAUDE.md` for the full "to change X, edit Y" guide, the layering rules (pure engine, zod at the boundary, append-only events), and step-by-step recipes for adding event kinds and config fields.
+
 ## Training model
 
 - Periodization runs in 4-week mesocycles: base, build, peak, deload. Deload weeks drop volume to 60% and remove high-intensity work.
@@ -22,10 +43,13 @@ A mobile-first PWA that generates and adapts bouldering training plans determini
 ```sh
 npm install
 npm test          # engine tests
+npm run check     # typecheck + lint + format check + tests (what CI runs)
 npm run build
 npm run dev       # server on :3000
 npm run dev -w web  # vite dev server on :5173, proxies /api to :3000
 ```
+
+Formatting is Prettier (`npm run format`), linting is ESLint (`npm run lint`); both run in CI on every push and PR alongside typechecking, tests, and the build.
 
 ## Deploy on Railway
 
