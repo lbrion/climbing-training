@@ -107,6 +107,8 @@ export type PlanEvent =
       durationMin: number;
       avgHr: number | null;
       maxHr: number | null;
+      /** Per-minute average heart rate from the recording, index = minute from start. */
+      hrSeries?: number[];
       climbs?: ImportedClimb[];
     };
 

@@ -59,17 +59,17 @@ CI (`.github/workflows/ci.yml`) runs `check` + `build` on every PR and push to `
 
 ### UI (`web/src/`)
 
-| To change…                                                      | Edit                                                                                               |
-| --------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| Screen routing, top bar, service-worker registration            | `App.tsx`                                                                                          |
-| Plan list / calendar views, session cards, quick-miss           | `Plan.tsx`                                                                                         |
-| Session detail sheet: feedback form, RPE, pain, move/reschedule | `SessionSheet.tsx`                                                                                 |
-| Settings menu: goal, availability, equipment                    | `Settings.tsx` — goal/availability save as events; equipment re-posts the config                   |
-| Onboarding wizard and assessment re-run                         | `Setup.tsx` — all four steps on first run; assessment-only when re-run from Settings               |
-| History view: stats, past sessions, retro-logging               | `History.tsx`                                                                                      |
-| Server communication and the `AppState` shape                   | `api.ts` — all fetches go through here; components never call `fetch` directly                     |
-| All styling                                                     | `styles.css` — plain CSS, class-based, no CSS-in-JS or frameworks; dark theme variables at the top |
-| PWA manifest, service-worker caching, dev proxy, `__BUILD_ID__` | `web/vite.config.ts`                                                                               |
+| To change…                                                                  | Edit                                                                                               |
+| --------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| Screen routing, top bar, service-worker registration                        | `App.tsx`                                                                                          |
+| Plan list / calendar views, session cards, quick-miss                       | `Plan.tsx`                                                                                         |
+| Session detail sheet: feedback form, RPE, pain, move/reschedule, watch data | `SessionSheet.tsx` (+ `HrChart.tsx` — plain-SVG heart-rate chart, no chart libraries)              |
+| Settings menu: goal, availability, equipment                                | `Settings.tsx` — goal/availability save as events; equipment re-posts the config                   |
+| Onboarding wizard and assessment re-run                                     | `Setup.tsx` — all four steps on first run; assessment-only when re-run from Settings               |
+| History view: stats, past sessions, retro-logging                           | `History.tsx`                                                                                      |
+| Server communication and the `AppState` shape                               | `api.ts` — all fetches go through here; components never call `fetch` directly                     |
+| All styling                                                                 | `styles.css` — plain CSS, class-based, no CSS-in-JS or frameworks; dark theme variables at the top |
+| PWA manifest, service-worker caching, dev proxy, `__BUILD_ID__`             | `web/vite.config.ts`                                                                               |
 
 **Web rules:**
 

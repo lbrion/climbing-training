@@ -1,11 +1,22 @@
 import { useRef, useState } from 'react';
 import { TEMPLATES, type InjurySite, type Session, type SessionType } from '@climb/engine';
-import { api, type AppState } from './api.js';
+import { api, type AppState, type ImportedActivity } from './api.js';
+import { HrChart } from './HrChart.js';
 
 const SITES: InjurySite[] = ['finger', 'wrist', 'elbow', 'shoulder', 'back', 'knee'];
 const LOGGABLE_TYPES = (Object.keys(TEMPLATES) as SessionType[]).filter((t) => t !== 'rest');
 
-export function SessionSheet({ session, onClose, onUpdate }: { session: Session; onClose: () => void; onUpdate: (s: AppState) => void }) {
+export function SessionSheet({
+  session,
+  imported,
+  onClose,
+  onUpdate,
+}: {
+  session: Session;
+  imported?: ImportedActivity;
+  onClose: () => void;
+  onUpdate: (s: AppState) => void;
+}) {
   const [completed, setCompleted] = useState(true);
   const [actualType, setActualType] = useState<SessionType | ''>('');
   const [rpe, setRpe] = useState(6);
@@ -83,6 +94,18 @@ export function SessionSheet({ session, onClose, onUpdate }: { session: Session;
             </li>
           ))}
         </ul>
+
+        {imported && (
+          <div className="watch-block" onTouchStart={(e) => e.stopPropagation()} onTouchMove={(e) => e.stopPropagation()}>
+            <h3>Watch data</h3>
+            <div className="card-sub">
+              <span className="mono watch">⌚ {imported.durationMin} MIN</span>
+              {imported.avgHr != null && <span className="mono">AVG {imported.avgHr}</span>}
+              {imported.maxHr != null && <span className="mono">MAX {imported.maxHr}</span>}
+            </div>
+            {imported.hrSeries && imported.hrSeries.length > 1 && <HrChart series={imported.hrSeries} avgHr={imported.avgHr} />}
+          </div>
+        )}
 
         <h3>Log this session</h3>
         <div className="row">

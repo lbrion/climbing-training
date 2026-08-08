@@ -236,6 +236,55 @@ h3 {
 .watch {
   color: var(--sky);
 }
+.watch-block {
+  margin-bottom: 4px;
+}
+.hr-chart {
+  width: 100%;
+  height: auto;
+  margin-top: 10px;
+  touch-action: none;
+  --hr: #ef4f2c;
+}
+.hr-chart .grid {
+  stroke: var(--line);
+  stroke-width: 1;
+}
+.hr-chart .axis {
+  fill: var(--muted);
+  font-family: var(--mono);
+  font-size: 8px;
+}
+.hr-chart .hr-line {
+  stroke: var(--hr);
+  stroke-width: 2;
+  fill: none;
+  stroke-linejoin: round;
+}
+.hr-chart .hr-area {
+  fill: var(--hr);
+  opacity: 0.14;
+}
+.hr-chart .avg-line {
+  stroke: var(--muted);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+}
+.hr-chart .cursor-line {
+  stroke: var(--chalk);
+  stroke-width: 1;
+  opacity: 0.4;
+}
+.hr-chart .cursor-dot {
+  fill: var(--hr);
+  stroke: var(--surface);
+  stroke-width: 2;
+}
+.hr-chart .readout {
+  fill: var(--chalk);
+  font-family: var(--mono);
+  font-size: 9px;
+}
 .missed {
   color: var(--ember);
 }

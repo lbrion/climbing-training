@@ -8,6 +8,8 @@ export interface AppState {
   events?: PlanEvent[];
 }
 
+export type ImportedActivity = Extract<PlanEvent, { kind: 'imported-activity' }>;
+
 export interface FitImportReport {
   skipped: boolean;
   date: string;

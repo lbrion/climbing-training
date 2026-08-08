@@ -11,7 +11,7 @@ setInterval(
   15 * 60 * 1000,
 );
 import type { Session } from '@climb/engine';
-import { api, type AppState } from './api.js';
+import { api, type AppState, type ImportedActivity } from './api.js';
 import { Setup } from './Setup.js';
 import { Settings } from './Settings.js';
 import { PlanView } from './Plan.js';
@@ -85,6 +85,11 @@ export function App() {
       {open && (
         <SessionSheet
           session={open}
+          imported={
+            (state.events ?? [])
+              .filter((e): e is ImportedActivity => e.kind === 'imported-activity' && e.date === open.date)
+              .sort((a, b) => b.durationMin - a.durationMin)[0]
+          }
           onClose={() => setOpen(null)}
           onUpdate={(next) => {
             setState(next);

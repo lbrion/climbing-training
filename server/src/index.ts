@@ -95,6 +95,7 @@ const eventSchema = z.discriminatedUnion('kind', [
     durationMin: z.number().min(0).max(1440),
     avgHr: z.number().min(20).max(250).nullable(),
     maxHr: z.number().min(20).max(250).nullable(),
+    hrSeries: z.array(z.number().min(20).max(250)).max(1440).optional(),
     climbs: z
       .array(z.object({ result: z.enum(['send', 'attempt']), grade: z.number().min(0).max(17).nullable() }))
       .max(300)
@@ -199,6 +200,29 @@ function parseFit(buf: Buffer): { event: ImportedActivity; report: Record<string
   const avgHr = session.avgHeartRate ?? (hrs.length ? Math.round(hrs.reduce((a, b) => a + b, 0) / hrs.length) : null);
   const maxHr = session.maxHeartRate ?? (hrs.length ? Math.max(...hrs) : null);
 
+  // Per-minute average HR, minute 0 = session start; gaps carry the previous value.
+  const startMs = (toDate(session.startTime) ?? local).getTime();
+  const buckets = new Map<number, { sum: number; n: number }>();
+  for (const r of messages.recordMesgs ?? []) {
+    if (typeof r.heartRate !== 'number' || !(r.timestamp instanceof Date)) continue;
+    const minute = Math.floor((r.timestamp.getTime() - startMs) / 60000);
+    if (minute < 0 || minute > 1439) continue;
+    const b = buckets.get(minute) ?? { sum: 0, n: 0 };
+    b.sum += r.heartRate;
+    b.n++;
+    buckets.set(minute, b);
+  }
+  let hrSeries: number[] | undefined;
+  if (buckets.size >= 2) {
+    hrSeries = [];
+    let prev = buckets.get(Math.min(...buckets.keys()))!;
+    for (let m = 0; m <= Math.max(...buckets.keys()); m++) {
+      const b = buckets.get(m) ?? prev;
+      hrSeries.push(Math.min(250, Math.max(20, Math.round(b.sum / b.n))));
+      prev = b;
+    }
+  }
+
   const created = fileId?.timeCreated instanceof Date ? fileId.timeCreated.toISOString() : String(fileId?.timeCreated ?? '');
   const event: ImportedActivity = {
     kind: 'imported-activity',
@@ -208,6 +232,7 @@ function parseFit(buf: Buffer): { event: ImportedActivity; report: Record<string
     durationMin: Math.max(1, Math.round((session.totalTimerTime ?? 0) / 60)),
     avgHr,
     maxHr,
+    hrSeries,
   };
 
   const splits = messages.splitMesgs ?? [];
