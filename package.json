@@ -10,6 +10,17 @@
     "build": "npm run build -w packages/engine && npm run build -w web && npm run build -w server",
     "test": "npm run test -w packages/engine",
     "dev": "npm run dev -w server",
-    "start": "npm run start -w server"
+    "start": "npm run start -w server",
+    "typecheck": "npm run typecheck --workspaces",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "check": "npm run typecheck && npm run lint && npm run format:check && npm test"
+  },
+  "devDependencies": {
+    "eslint": "^10.8.1",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "prettier": "^3.9.6",
+    "typescript-eslint": "^8.66.0"
   }
 }

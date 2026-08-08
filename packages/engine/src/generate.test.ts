@@ -42,9 +42,7 @@ describe('generatePlan', () => {
 
   it('spaces hard finger sessions 48h apart', () => {
     const plan = generatePlan(base, '2026-08-03');
-    const hardFinger = plan.sessions.filter(
-      (s) => TEMPLATES[s.type].fingerLoad && TEMPLATES[s.type].intensity === 'high',
-    );
+    const hardFinger = plan.sessions.filter((s) => TEMPLATES[s.type].fingerLoad && TEMPLATES[s.type].intensity === 'high');
     for (let i = 1; i < hardFinger.length; i++) {
       expect(daysBetween(hardFinger[i - 1].date, hardFinger[i].date)).toBeGreaterThanOrEqual(2);
     }
@@ -60,7 +58,9 @@ describe('generatePlan', () => {
   it('removes finger-loading sessions after finger pain', () => {
     const hurt: UserState = {
       ...base,
-      events: [{ kind: 'feedback', sessionId: 's-0-0', date: '2026-08-03', completed: true, rpe: 8, pain: { site: 'finger', severity: 2 } }],
+      events: [
+        { kind: 'feedback', sessionId: 's-0-0', date: '2026-08-03', completed: true, rpe: 8, pain: { site: 'finger', severity: 2 } },
+      ],
     };
     const plan = generatePlan(hurt, '2026-08-04');
     const upcoming = plan.sessions.filter((s) => s.date >= '2026-08-04' && s.date <= '2026-08-11');
@@ -114,7 +114,9 @@ describe('generatePlan', () => {
   it('widens finger spacing to 72h after finger pain', () => {
     const hurt: UserState = {
       ...base,
-      events: [{ kind: 'feedback', sessionId: 's-0-0', date: '2026-08-03', completed: true, rpe: 7, pain: { site: 'finger', severity: 1 } }],
+      events: [
+        { kind: 'feedback', sessionId: 's-0-0', date: '2026-08-03', completed: true, rpe: 7, pain: { site: 'finger', severity: 1 } },
+      ],
     };
     const plan = generatePlan(hurt, '2026-08-20');
     const hardFinger = plan.sessions.filter(
@@ -133,7 +135,12 @@ describe('generatePlan', () => {
     const plan0 = generatePlan(fiveDays, '2026-08-24');
     const past = plan0.sessions.filter((s) => s.date < '2026-08-24');
     const events: UserState['events'] = past.map((s) => ({
-      kind: 'feedback', sessionId: s.id, date: s.date, completed: true, rpe: 5, pain: null,
+      kind: 'feedback',
+      sessionId: s.id,
+      date: s.date,
+      completed: true,
+      rpe: 5,
+      pain: null,
     }));
     const plan = generatePlan({ ...fiveDays, events }, '2026-08-24');
     expect(plan.notices.join(' ')).toMatch(/increased/);
@@ -189,7 +196,12 @@ describe('generatePlan', () => {
     const plan0 = generatePlan(base, '2026-08-24');
     const limits = plan0.sessions.filter((s) => s.type === 'limit-boulder' && s.date < '2026-08-24').slice(0, 3);
     const events: UserState['events'] = limits.map((s) => ({
-      kind: 'feedback', sessionId: s.id, date: s.date, completed: true, rpe: 6, pain: null,
+      kind: 'feedback',
+      sessionId: s.id,
+      date: s.date,
+      completed: true,
+      rpe: 6,
+      pain: null,
     }));
     const plan = generatePlan({ ...base, events }, '2026-08-24');
     const upcoming = plan.sessions.find((s) => s.type === 'limit-boulder' && s.date >= '2026-08-24');
@@ -206,9 +218,7 @@ describe('generatePlan', () => {
       },
     };
     const plan = generatePlan(state, '2026-08-03');
-    const firstHardFinger = plan.sessions.find(
-      (s) => TEMPLATES[s.type].fingerLoad && TEMPLATES[s.type].intensity === 'high',
-    );
+    const firstHardFinger = plan.sessions.find((s) => TEMPLATES[s.type].fingerLoad && TEMPLATES[s.type].intensity === 'high');
     expect(firstHardFinger).toBeDefined();
     expect(daysBetween('2026-08-02', firstHardFinger!.date)).toBeGreaterThanOrEqual(2);
   });
@@ -272,7 +282,9 @@ describe('generatePlan', () => {
     const highs = plan0.sessions.filter((s) => s.intensity === 'high' && s.date <= '2026-08-07').slice(0, 2);
     const events: UserState['events'] = [
       { kind: 'feedback', sessionId: highs[0].id, date: highs[0].date, completed: true, rpe: 6, pain: null, actualType: 'flash-boulder' },
-      ...(highs[1] ? [{ kind: 'feedback' as const, sessionId: highs[1].id, date: highs[1].date, completed: false, rpe: null, pain: null }] : []),
+      ...(highs[1]
+        ? [{ kind: 'feedback' as const, sessionId: highs[1].id, date: highs[1].date, completed: false, rpe: null, pain: null }]
+        : []),
     ];
     const plan = generatePlan({ ...everyday, events }, '2026-08-08');
     const upcoming = [...new Set(plan.sessions.filter((s) => s.date >= '2026-08-08').map((s) => s.date))].sort();
@@ -300,9 +312,7 @@ describe('generatePlan', () => {
       },
     };
     const plan = generatePlan(injured, '2026-08-03');
-    const hardFinger = plan.sessions.filter(
-      (s) => TEMPLATES[s.type].fingerLoad && TEMPLATES[s.type].intensity === 'high',
-    );
+    const hardFinger = plan.sessions.filter((s) => TEMPLATES[s.type].fingerLoad && TEMPLATES[s.type].intensity === 'high');
     for (let i = 1; i < hardFinger.length; i++) {
       expect(daysBetween(hardFinger[i - 1].date, hardFinger[i].date)).toBeGreaterThanOrEqual(3);
     }
@@ -324,10 +334,7 @@ describe('generatePlan', () => {
     const recovered = plan1.sessions.find((s) => s.id === `${limit.id}-r`)!;
     const movedState: UserState = {
       ...missedState,
-      events: [
-        ...missedState.events,
-        { kind: 'move', sessionId: recovered.id, fromDate: recovered.date, toDate: '2026-08-09' },
-      ],
+      events: [...missedState.events, { kind: 'move', sessionId: recovered.id, fromDate: recovered.date, toDate: '2026-08-09' }],
     };
     const plan2 = generatePlan(movedState, '2026-08-04');
     expect(plan2.sessions.find((s) => s.id === recovered.id)?.date).toBe('2026-08-09');
@@ -347,7 +354,7 @@ describe('generatePlan', () => {
   it('caps intensity when acute load spikes', () => {
     const plan0 = generatePlan(base, '2026-08-17');
     const past = plan0.sessions.filter((s) => s.date < '2026-08-17');
-    const events: UserState['events'] = past.map((s, i) => ({
+    const events: UserState['events'] = past.map((s) => ({
       kind: 'feedback',
       sessionId: s.id,
       date: s.date,

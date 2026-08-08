@@ -83,8 +83,7 @@ export function Setup({ initial, onDone }: { initial?: Config; onDone: (s: AppSt
           onChange={(e) => {
             const v = e.target.value;
             setA({
-              lastHardSessionDate:
-                v === '3+' ? null : new Date(Date.parse(todayIso()) - +v * 86400000).toISOString().slice(0, 10),
+              lastHardSessionDate: v === '3+' ? null : new Date(Date.parse(todayIso()) - +v * 86400000).toISOString().slice(0, 10),
             });
           }}
         >
@@ -135,9 +134,7 @@ export function Setup({ initial, onDone }: { initial?: Config; onDone: (s: AppSt
             <input
               type="checkbox"
               checked={a.injuryHistory.includes(s)}
-              onChange={(e) =>
-                setA({ injuryHistory: e.target.checked ? [...a.injuryHistory, s] : a.injuryHistory.filter((x) => x !== s) })
-              }
+              onChange={(e) => setA({ injuryHistory: e.target.checked ? [...a.injuryHistory, s] : a.injuryHistory.filter((x) => x !== s) })}
             />
             {s}
           </label>
@@ -147,10 +144,16 @@ export function Setup({ initial, onDone }: { initial?: Config; onDone: (s: AppSt
     <section key="goal">
       <h2>Goal</h2>
       <div className="row">
-        <button className={cfg.goal.type === 'grade' ? 'seg on' : 'seg'} onClick={() => setCfg({ ...cfg, goal: { type: 'grade', targetGrade: a.maxBoulderGrade + 2 } })}>
+        <button
+          className={cfg.goal.type === 'grade' ? 'seg on' : 'seg'}
+          onClick={() => setCfg({ ...cfg, goal: { type: 'grade', targetGrade: a.maxBoulderGrade + 2 } })}
+        >
           Grade
         </button>
-        <button className={cfg.goal.type === 'skill' ? 'seg on' : 'seg'} onClick={() => setCfg({ ...cfg, goal: { type: 'skill', skill: 'overhang' } })}>
+        <button
+          className={cfg.goal.type === 'skill' ? 'seg on' : 'seg'}
+          onClick={() => setCfg({ ...cfg, goal: { type: 'skill', skill: 'overhang' } })}
+        >
           Skill
         </button>
       </div>
@@ -170,7 +173,12 @@ export function Setup({ initial, onDone }: { initial?: Config; onDone: (s: AppSt
           Skill focus
           <select
             value={cfg.goal.skill}
-            onChange={(e) => setCfg({ ...cfg, goal: { type: 'skill', skill: e.target.value as Goal & { type: 'skill' } extends { skill: infer S } ? S : never } })}
+            onChange={(e) =>
+              setCfg({
+                ...cfg,
+                goal: { type: 'skill', skill: e.target.value as Goal & { type: 'skill' } extends { skill: infer S } ? S : never },
+              })
+            }
           >
             {SKILLS.map((s) => (
               <option key={s} value={s}>
@@ -220,7 +228,9 @@ export function Setup({ initial, onDone }: { initial?: Config; onDone: (s: AppSt
   return (
     <div className="screen setup">
       <header className="topbar">
-        <h1>Setup {step + 1}/{steps.length}</h1>
+        <h1>
+          Setup {step + 1}/{steps.length}
+        </h1>
       </header>
       {steps[step]}
       {error && <div className="notice">{error}</div>}

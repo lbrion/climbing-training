@@ -44,8 +44,18 @@ const eventSchema = z.discriminatedUnion('kind', [
     pain: painSchema.nullable(),
     actualType: z
       .enum([
-        'limit-boulder', 'flash-boulder', 'volume-boulder', 'technique', 'board-power', 'hangboard-max',
-        'hangboard-subhang', 'strength', 'power-endurance', 'aerobic-capacity', 'mobility-prehab', 'rest',
+        'limit-boulder',
+        'flash-boulder',
+        'volume-boulder',
+        'technique',
+        'board-power',
+        'hangboard-max',
+        'hangboard-subhang',
+        'strength',
+        'power-endurance',
+        'aerobic-capacity',
+        'mobility-prehab',
+        'rest',
       ])
       .nullable()
       .optional(),
@@ -88,7 +98,11 @@ const configSchema = z.object({
     experienceYears: z.number().min(0).max(60),
     weeklySessionsHistorical: z.number().min(0).max(14),
     injuryHistory: z.array(z.enum(['finger', 'elbow', 'shoulder', 'wrist', 'back', 'knee'])),
-    lastHardSessionDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+    lastHardSessionDate: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/)
+      .nullable()
+      .optional(),
     selfRated: z.object({
       technique: z.number().min(1).max(5),
       power: z.number().min(1).max(5),
@@ -120,7 +134,13 @@ app.get('/api/state', (req, res) => {
   const state = loadState();
   if (!state) return res.json({ configured: false });
   const t = today(req);
-  res.json({ configured: true, config: state.config, plan: generatePlan(state, t), metrics: computeMetrics(state, t), events: state.events });
+  res.json({
+    configured: true,
+    config: state.config,
+    plan: generatePlan(state, t),
+    metrics: computeMetrics(state, t),
+    events: state.events,
+  });
 });
 
 app.post('/api/setup', (req, res) => {
@@ -131,7 +151,13 @@ app.post('/api/setup', (req, res) => {
   if (!existing || req.query.reset === 'true') db.prepare('DELETE FROM events WHERE user_id = ?').run(USER);
   const state = loadState()!;
   const t = today(req);
-  res.json({ configured: true, config: state.config, plan: generatePlan(state, t), metrics: computeMetrics(state, t), events: state.events });
+  res.json({
+    configured: true,
+    config: state.config,
+    plan: generatePlan(state, t),
+    metrics: computeMetrics(state, t),
+    events: state.events,
+  });
 });
 
 app.post('/api/events', (req, res) => {

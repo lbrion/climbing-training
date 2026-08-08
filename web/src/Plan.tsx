@@ -107,9 +107,7 @@ export function PlanView({
     localStorage.setItem('planView', v);
   };
 
-  const doneById = new Map(
-    (state.events ?? []).filter((e) => e.kind === 'feedback').map((e) => [e.sessionId, e.completed] as const),
-  );
+  const doneById = new Map((state.events ?? []).filter((e) => e.kind === 'feedback').map((e) => [e.sessionId, e.completed] as const));
   const days = Array.from({ length: 14 }, (_, i) => addDays(today, i));
   const byDate = new Map<string, Session[]>(days.map((d) => [d, []]));
   for (const s of plan.sessions) byDate.get(s.date)?.push(s);
@@ -137,9 +135,7 @@ export function PlanView({
                 [1, 'Heavy'],
               ] as const
             ).map(([level, label]) => {
-              const current = [...(state.events ?? [])]
-                .reverse()
-                .find((e) => e.kind === 'readiness' && e.date === today);
+              const current = [...(state.events ?? [])].reverse().find((e) => e.kind === 'readiness' && e.date === today);
               const on = current && current.kind === 'readiness' && current.level === level;
               return (
                 <button key={level} className={on ? 'seg on' : 'seg'} onClick={() => logReadiness(level)}>
@@ -169,20 +165,28 @@ export function PlanView({
           {days.map((date) => {
             const daySessions = byDate.get(date)!;
             const top = daySessions.reduce<string | null>(
-              (acc, s) => (acc === 'high' ? acc : s.intensity === 'high' ? 'high' : s.intensity === 'medium' ? 'medium' : acc ?? 'low'),
+              (acc, s) => (acc === 'high' ? acc : s.intensity === 'high' ? 'high' : s.intensity === 'medium' ? 'medium' : (acc ?? 'low')),
               null,
             );
             return (
               <section key={date} className="day">
                 <div className="rail">
-                  <span className={top ? `hold hold-${top}${date === today ? ' hold-today' : ''}` : `hold hold-rest${date === today ? ' hold-today' : ''}`} />
+                  <span
+                    className={
+                      top
+                        ? `hold hold-${top}${date === today ? ' hold-today' : ''}`
+                        : `hold hold-rest${date === today ? ' hold-today' : ''}`
+                    }
+                  />
                 </div>
                 <div className="day-body">
                   <h2 className={date === today ? 'today' : ''}>{date === today ? `Today · ${fmtDay(date)}` : fmtDay(date)}</h2>
                   {daySessions.length === 0 ? (
                     <RestCard />
                   ) : (
-                    daySessions.map((s) => <SessionCard key={s.id} s={s} done={doneById.get(s.id) ?? null} onOpen={onOpen} onMiss={quickMiss} />)
+                    daySessions.map((s) => (
+                      <SessionCard key={s.id} s={s} done={doneById.get(s.id) ?? null} onOpen={onOpen} onMiss={quickMiss} />
+                    ))
                   )}
                 </div>
               </section>
@@ -223,13 +227,13 @@ export function PlanView({
             })}
           </div>
           <section>
-            <h2 className={selected === today ? 'today' : ''}>
-              {selected === today ? `Today · ${fmtDay(selected)}` : fmtDay(selected)}
-            </h2>
+            <h2 className={selected === today ? 'today' : ''}>{selected === today ? `Today · ${fmtDay(selected)}` : fmtDay(selected)}</h2>
             {byDate.get(selected)!.length === 0 ? (
               <RestCard />
             ) : (
-              byDate.get(selected)!.map((s) => <SessionCard key={s.id} s={s} done={doneById.get(s.id) ?? null} onOpen={onOpen} onMiss={quickMiss} />)
+              byDate
+                .get(selected)!
+                .map((s) => <SessionCard key={s.id} s={s} done={doneById.get(s.id) ?? null} onOpen={onOpen} onMiss={quickMiss} />)
             )}
           </section>
         </>

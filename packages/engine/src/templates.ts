@@ -28,7 +28,11 @@ export const TEMPLATES: Record<SessionType, Template> = {
     fingerLoad: true,
     exercises: (phase, grade) => [
       { name: 'Warm-up pyramid', detail: `15 min easy climbing up to ${g(grade, -2)}`, sets: '10–15 problems' },
-      { name: 'Limit attempts', detail: `Projects at ${g(grade, 0)}–${g(grade, 1)}, full rest (3–5 min) between attempts`, sets: '4–6 problems, 3–5 tries each' },
+      {
+        name: 'Limit attempts',
+        detail: `Projects at ${g(grade, 0)}–${g(grade, 1)}, full rest (3–5 min) between attempts`,
+        sets: '4–6 problems, 3–5 tries each',
+      },
       { name: 'Cool-down', detail: 'Easy mileage and shoulder care', sets: '10 min' },
     ],
   },
@@ -44,7 +48,11 @@ export const TEMPLATES: Record<SessionType, Template> = {
     fingerLoad: true,
     exercises: (phase, grade) => [
       { name: 'Warm-up', detail: 'Progressive problems, rehearse reading sequences from the ground', sets: '15 min' },
-      { name: 'Flash attempts', detail: `Fresh problems at ${g(grade, -2)}–${g(grade, -1)}, one genuine attempt each, full rest`, sets: '8–12 problems' },
+      {
+        name: 'Flash attempts',
+        detail: `Fresh problems at ${g(grade, -2)}–${g(grade, -1)}, one genuine attempt each, full rest`,
+        sets: '8–12 problems',
+      },
       { name: 'Review', detail: 'Repeat two failed flashes to extract the lesson', sets: '2 problems' },
     ],
   },
@@ -89,7 +97,7 @@ export const TEMPLATES: Record<SessionType, Template> = {
     minGrade: 3,
     minExperienceYears: 1,
     fingerLoad: true,
-    exercises: (phase, grade) => [
+    exercises: () => [
       { name: 'Warm-up', detail: 'Progressive board problems', sets: '15 min' },
       { name: 'Power problems', detail: 'Short, hard board problems with big moves, full rest', sets: '8–10 problems' },
       { name: 'Optional campus touches', detail: 'Only if fully warm and pain-free', sets: '3 sets' },
@@ -137,7 +145,11 @@ export const TEMPLATES: Record<SessionType, Template> = {
     minExperienceYears: 0,
     fingerLoad: false,
     exercises: (phase) => [
-      { name: 'Weighted pull-ups', detail: phase === 'peak' ? 'Heavy triples, 3 min rest' : '5 reps, hard but 1–2 in reserve', sets: '4–5 sets' },
+      {
+        name: 'Weighted pull-ups',
+        detail: phase === 'peak' ? 'Heavy triples, 3 min rest' : '5 reps, hard but 1–2 in reserve',
+        sets: '4–5 sets',
+      },
       { name: 'Rows or ring work', detail: 'Horizontal pulling for shoulder balance', sets: '3×8' },
       { name: 'Core', detail: 'Front lever progressions or hanging leg raises', sets: '3 sets' },
       { name: 'Push', detail: 'Overhead press or push-ups', sets: '3×8' },
@@ -169,7 +181,11 @@ export const TEMPLATES: Record<SessionType, Template> = {
     minExperienceYears: 0,
     fingerLoad: false,
     exercises: (phase, grade) => [
-      { name: 'Continuous easy climbing', detail: `Traverse or up-down-climb at ${g(grade, -4)} or easier, never pumped`, sets: '3×10 min' },
+      {
+        name: 'Continuous easy climbing',
+        detail: `Traverse or up-down-climb at ${g(grade, -4)} or easier, never pumped`,
+        sets: '3×10 min',
+      },
     ],
   },
   'mobility-prehab': {

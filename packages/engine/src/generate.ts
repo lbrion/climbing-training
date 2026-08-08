@@ -1,17 +1,7 @@
 import { QUALITY_SESSIONS, rankWeaknesses } from './assessment.js';
 import { learnProfile } from './learn.js';
 import { TEMPLATES, type Template } from './templates.js';
-import type {
-  Config,
-  Equipment,
-  LoadStatus,
-  Phase,
-  Plan,
-  PlanEvent,
-  Session,
-  SessionType,
-  UserState,
-} from './types.js';
+import type { Config, Equipment, LoadStatus, Phase, Plan, PlanEvent, Session, SessionType, UserState } from './types.js';
 
 const DAY_MS = 86_400_000;
 const HORIZON_DAYS = 28;
@@ -144,8 +134,7 @@ export function generatePlan(state: UserState, today: string): Plan {
 
   const learned = learnProfile(state.events, today);
   notices.push(...learned.rationale);
-  const priorFingerInjury =
-    config.assessment.injuryHistory.includes('finger') || config.assessment.injuryHistory.includes('wrist');
+  const priorFingerInjury = config.assessment.injuryHistory.includes('finger') || config.assessment.injuryHistory.includes('wrist');
   const fingerGap = priorFingerInjury ? 3 : learned.fingerGapDays;
   if (priorFingerInjury && learned.fingerGapDays < 3) {
     notices.push('Past finger/wrist injury: hard finger sessions are kept 72h apart.');
@@ -170,7 +159,9 @@ export function generatePlan(state: UserState, today: string): Plan {
     const painActive = daysBetween(today, weekStart) <= 7 ? pain : { finger: false, upperLimb: false };
     const slots = Math.min(days.length, phase === 'deload' ? Math.min(weeklyCap, 4) : weeklyCap);
     const scheduledDays = Array.from({ length: slots }, (_, i) => days[Math.floor((i * days.length) / slots)]);
-    const types = orderForSpacing(weeklySessionTypes(cfg, slots, phase, painActive, w === Math.floor(daysBetween(start, today) / 7) ? notices : []));
+    const types = orderForSpacing(
+      weeklySessionTypes(cfg, slots, phase, painActive, w === Math.floor(daysBetween(start, today) / 7) ? notices : []),
+    );
 
     types.forEach((type, slot) => {
       const date = scheduledDays[slot];
@@ -235,11 +226,7 @@ export function generatePlan(state: UserState, today: string): Plan {
   const consumed = new Set<string>();
 
   const scheduleHealthy = (extraDate?: string): boolean => {
-    const trainDays = new Set(
-      sessions
-        .filter((o) => daysBetween(today, o.date) >= 0 && !lastFeedback.has(o.id))
-        .map((o) => o.date),
-    );
+    const trainDays = new Set(sessions.filter((o) => daysBetween(today, o.date) >= 0 && !lastFeedback.has(o.id)).map((o) => o.date));
     if (extraDate) trainDays.add(extraDate);
     for (const e of state.events) {
       if (e.kind === 'feedback' && e.completed && daysBetween(e.date, today) >= 0 && daysBetween(e.date, today) <= 6) {
@@ -267,8 +254,7 @@ export function generatePlan(state: UserState, today: string): Plan {
   };
 
   const dayFree = (date: string) =>
-    availability.minutesByWeekday[weekdayOf(date)] >= 30 &&
-    phaseForWeek(Math.floor(daysBetween(start, date) / 7)) !== 'deload';
+    availability.minutesByWeekday[weekdayOf(date)] >= 30 && phaseForWeek(Math.floor(daysBetween(start, date) / 7)) !== 'deload';
 
   const tryShiftRecovery = (missedSession: Session, missedTmpl: Template): boolean => {
     let insertDate: string | null = null;
@@ -321,7 +307,9 @@ export function generatePlan(state: UserState, today: string): Plan {
         const prevHardFinger = sorted
           .slice(0, i)
           .filter((p) => TEMPLATES[p.type].fingerLoad && TEMPLATES[p.type].intensity === 'high')
-          .some((p) => TEMPLATES[cur.type].fingerLoad && TEMPLATES[cur.type].intensity === 'high' && daysBetween(p.date, cur.date) < fingerGap);
+          .some(
+            (p) => TEMPLATES[cur.type].fingerLoad && TEMPLATES[cur.type].intensity === 'high' && daysBetween(p.date, cur.date) < fingerGap,
+          );
         const prevHighAdjacent = sorted
           .slice(0, i)
           .filter((p) => TEMPLATES[p.type].intensity === 'high')
@@ -364,13 +352,12 @@ export function generatePlan(state: UserState, today: string): Plan {
     const missedSession = byId.get(sessionId);
     if (!missedSession || TEMPLATES[missedSession.type].intensity !== 'high') continue;
     const substituted =
-      fb.completed &&
-      fb.actualType != null &&
-      fb.actualType !== missedSession.type &&
-      TEMPLATES[fb.actualType].intensity !== 'high';
+      fb.completed && fb.actualType != null && fb.actualType !== missedSession.type && TEMPLATES[fb.actualType].intensity !== 'high';
     if (fb.completed && !substituted) continue;
     if (substituted) {
-      missedSession.warnings.push(`Logged as ${TEMPLATES[fb.actualType!].title} — the ${TEMPLATES[missedSession.type].title} stimulus moves ahead.`);
+      missedSession.warnings.push(
+        `Logged as ${TEMPLATES[fb.actualType!].title} — the ${TEMPLATES[missedSession.type].title} stimulus moves ahead.`,
+      );
     }
     const missedTmpl = TEMPLATES[missedSession.type];
     if (tryShiftRecovery(missedSession, missedTmpl)) continue;
@@ -503,11 +490,11 @@ export function generatePlan(state: UserState, today: string): Plan {
     }
   }
 
-  const missed = state.events.filter(
-    (e) => e.kind === 'feedback' && !e.completed && daysBetween(e.date, today) <= 7,
-  ).length;
+  const missed = state.events.filter((e) => e.kind === 'feedback' && !e.completed && daysBetween(e.date, today) <= 7).length;
   if (missed >= 2) {
-    notices.push('Multiple sessions missed recently — this week is unchanged, but consider updating your availability so the plan matches real life.');
+    notices.push(
+      'Multiple sessions missed recently — this week is unchanged, but consider updating your availability so the plan matches real life.',
+    );
   }
 
   const visible = sessions

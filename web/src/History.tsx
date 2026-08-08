@@ -16,9 +16,7 @@ export function HistoryView({ state, onOpen }: { state: AppState; onOpen: (s: Se
   for (const e of state.events ?? []) {
     if (e.kind === 'feedback') lastFeedback.set(e.sessionId, e);
   }
-  const past = plan.sessions
-    .filter((s) => s.date < today)
-    .sort((a, b) => b.date.localeCompare(a.date));
+  const past = plan.sessions.filter((s) => s.date < today).sort((a, b) => b.date.localeCompare(a.date));
 
   const maxLoad = Math.max(1, ...(metrics?.weeklyLoads.map((w) => w.load) ?? [1]));
 
@@ -44,7 +42,9 @@ export function HistoryView({ state, onOpen }: { state: AppState; onOpen: (s: Se
               {metrics.weeklyLoads.map((w) => (
                 <div key={w.weekStart} className="bar-col">
                   <div className="bar" style={{ height: `${Math.max(4, (w.load / maxLoad) * 48)}px` }} />
-                  <span className="bar-label">{new Date(w.weekStart + 'T00:00:00').toLocaleDateString(undefined, { month: 'numeric', day: 'numeric' })}</span>
+                  <span className="bar-label">
+                    {new Date(w.weekStart + 'T00:00:00').toLocaleDateString(undefined, { month: 'numeric', day: 'numeric' })}
+                  </span>
                 </div>
               ))}
             </div>

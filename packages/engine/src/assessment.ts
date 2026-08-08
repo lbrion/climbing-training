@@ -43,7 +43,7 @@ export function rankWeaknesses(a: Assessment, goal: Goal): Quality[] {
   deficits.power = 5 - a.selfRated.power;
   deficits.endurance = (5 - a.selfRated.endurance) * 0.8;
   const flashGap = a.maxBoulderGrade - a.flashGrade;
-  deficits.technique = (5 - a.selfRated.technique) + (flashGap >= 3 ? 1 : 0);
+  deficits.technique = 5 - a.selfRated.technique + (flashGap >= 3 ? 1 : 0);
 
   if (goal.type === 'skill') {
     if (goal.skill === 'endurance') deficits.endurance += 3;
@@ -53,9 +53,7 @@ export function rankWeaknesses(a: Assessment, goal: Goal): Quality[] {
     if (goal.skill === 'slab') deficits.technique += 3;
   }
 
-  return (Object.entries(deficits) as [Quality, number][])
-    .sort((x, y) => y[1] - x[1])
-    .map(([q]) => q);
+  return (Object.entries(deficits) as [Quality, number][]).sort((x, y) => y[1] - x[1]).map(([q]) => q);
 }
 
 export const QUALITY_SESSIONS: Record<Quality, SessionType[]> = {

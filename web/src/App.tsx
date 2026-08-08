@@ -4,9 +4,12 @@ import { registerSW } from 'virtual:pwa-register';
 declare const __BUILD_ID__: string;
 
 registerSW({ immediate: true });
-setInterval(() => {
-  navigator.serviceWorker?.getRegistration().then((r) => r?.update());
-}, 15 * 60 * 1000);
+setInterval(
+  () => {
+    navigator.serviceWorker?.getRegistration().then((r) => r?.update());
+  },
+  15 * 60 * 1000,
+);
 import type { Session } from '@climb/engine';
 import { api, type AppState } from './api.js';
 import { Setup } from './Setup.js';
@@ -20,7 +23,10 @@ export function App() {
   const [showSetup, setShowSetup] = useState(false);
 
   useEffect(() => {
-    api.state().then(setState).catch((e) => setError(String(e)));
+    api
+      .state()
+      .then(setState)
+      .catch((e) => setError(String(e)));
   }, []);
 
   if (error) return <div className="screen center">Could not reach server. {error}</div>;
@@ -61,7 +67,6 @@ export function App() {
       {open && (
         <SessionSheet
           session={open}
-          state={state}
           onClose={() => setOpen(null)}
           onUpdate={(next) => {
             setState(next);

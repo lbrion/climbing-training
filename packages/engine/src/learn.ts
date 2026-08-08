@@ -18,12 +18,9 @@ export function learnProfile(events: PlanEvent[], today: string): LearnedProfile
   const rationale: string[] = [];
 
   const feedback = events.filter(
-    (e): e is Extract<PlanEvent, { kind: 'feedback' }> =>
-      e.kind === 'feedback' && daysBetween(e.date, today) >= 0,
+    (e): e is Extract<PlanEvent, { kind: 'feedback' }> => e.kind === 'feedback' && daysBetween(e.date, today) >= 0,
   );
-  const longRpes = feedback
-    .filter((e) => e.completed && e.rpe !== null && daysBetween(e.date, today) <= 60)
-    .map((e) => e.rpe!);
+  const longRpes = feedback.filter((e) => e.completed && e.rpe !== null && daysBetween(e.date, today) <= 60).map((e) => e.rpe!);
   const baselineRpe = longRpes.length >= 10 ? median(longRpes) : null;
   const hiThreshold = baselineRpe !== null ? Math.min(baselineRpe + 1, 8.5) : 8.5;
   const loThreshold = 6.5;
@@ -33,10 +30,7 @@ export function learnProfile(events: PlanEvent[], today: string): LearnedProfile
   const meanRpe = rpes.length ? rpes.reduce((a, b) => a + b, 0) / rpes.length : null;
   const misses = recent.filter((e) => !e.completed).length;
   const anyFingerPain = feedback.some(
-    (e) =>
-      e.pain !== null &&
-      (e.pain.site === 'finger' || e.pain.site === 'wrist') &&
-      daysBetween(e.date, today) <= 28,
+    (e) => e.pain !== null && (e.pain.site === 'finger' || e.pain.site === 'wrist') && daysBetween(e.date, today) <= 28,
   );
 
   const readinessByDate = new Map<string, 1 | 2 | 3>();

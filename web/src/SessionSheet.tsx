@@ -5,17 +5,7 @@ import { api, type AppState } from './api.js';
 const SITES: InjurySite[] = ['finger', 'wrist', 'elbow', 'shoulder', 'back', 'knee'];
 const LOGGABLE_TYPES = (Object.keys(TEMPLATES) as SessionType[]).filter((t) => t !== 'rest');
 
-export function SessionSheet({
-  session,
-  state,
-  onClose,
-  onUpdate,
-}: {
-  session: Session;
-  state: AppState;
-  onClose: () => void;
-  onUpdate: (s: AppState) => void;
-}) {
+export function SessionSheet({ session, onClose, onUpdate }: { session: Session; onClose: () => void; onUpdate: (s: AppState) => void }) {
   const [completed, setCompleted] = useState(true);
   const [actualType, setActualType] = useState<SessionType | ''>('');
   const [rpe, setRpe] = useState(6);
@@ -158,12 +148,7 @@ export function SessionSheet({
         )}
         <label>
           Notes (optional)
-          <textarea
-            rows={3}
-            placeholder="Conditions, sends, how it felt…"
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-          />
+          <textarea rows={3} placeholder="Conditions, sends, how it felt…" value={notes} onChange={(e) => setNotes(e.target.value)} />
         </label>
         <button className="primary" disabled={busy} onClick={submitFeedback}>
           Save feedback
