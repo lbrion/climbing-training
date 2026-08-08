@@ -97,7 +97,23 @@ export type PlanEvent =
   | { kind: 'readiness'; date: string; level: 1 | 2 | 3 }
   | { kind: 'move'; sessionId: string; fromDate: string; toDate: string }
   | { kind: 'availability'; date: string; availability: Availability }
-  | { kind: 'goal'; date: string; goal: Goal };
+  | { kind: 'goal'; date: string; goal: Goal }
+  | {
+      /** A workout imported from a watch/FIT file (e.g. COROS, Garmin). Objective record alongside subjective feedback. */
+      kind: 'imported-activity';
+      date: string;
+      externalId: string;
+      sport: string;
+      durationMin: number;
+      avgHr: number | null;
+      maxHr: number | null;
+      climbs?: ImportedClimb[];
+    };
+
+export interface ImportedClimb {
+  result: 'send' | 'attempt';
+  grade: VGrade | null;
+}
 
 export interface UserState {
   config: Config;

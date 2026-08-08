@@ -51,13 +51,24 @@ function recentPain(events: PlanEvent[], today: string): RecentPain {
   return out;
 }
 
+/** Actual trained minutes per date from watch imports; the longest activity wins when a date has several. */
+export function importedMinutesByDate(events: PlanEvent[]): Map<string, number> {
+  const out = new Map<string, number>();
+  for (const e of events) {
+    if (e.kind !== 'imported-activity') continue;
+    out.set(e.date, Math.max(out.get(e.date) ?? 0, e.durationMin));
+  }
+  return out;
+}
+
 function computeLoad(events: PlanEvent[], sessions: Map<string, Session>, today: string, planStart: string): LoadStatus {
   let acute = 0;
   let chronic = 0;
+  const imported = importedMinutesByDate(events);
   for (const e of events) {
     if (e.kind !== 'feedback' || !e.completed || e.rpe === null) continue;
     const s = sessions.get(e.sessionId);
-    const load = e.rpe * (s ? s.durationMin : 60);
+    const load = e.rpe * (imported.get(e.date) ?? (s ? s.durationMin : 60));
     const age = daysBetween(e.date, today);
     if (age >= 0 && age < 7) acute += load;
     if (age >= 0 && age < 28) chronic += load;

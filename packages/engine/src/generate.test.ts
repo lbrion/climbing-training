@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { generatePlan, daysBetween } from './generate.js';
+import { generatePlan, daysBetween, addDays } from './generate.js';
+import { computeMetrics } from './metrics.js';
 import { TEMPLATES } from './templates.js';
 import type { UserState } from './types.js';
 
@@ -368,6 +369,55 @@ describe('generatePlan', () => {
       for (const s of week) expect(s.intensity).not.toBe('high');
     }
     expect(plan.loadStatus.ratio).not.toBeNull();
+  });
+
+  it('uses imported watch durations instead of planned durations for load', () => {
+    const plan0 = generatePlan(base, '2026-08-17');
+    const done = plan0.sessions.find((s) => s.date < '2026-08-17' && s.durationMin > 0)!;
+    const feedback: UserState['events'] = [{ kind: 'feedback', sessionId: done.id, date: done.date, completed: true, rpe: 8, pain: null }];
+    const withoutImport = generatePlan({ ...base, events: feedback }, addDays(done.date, 2));
+    const withImport = generatePlan(
+      {
+        ...base,
+        events: [
+          ...feedback,
+          {
+            kind: 'imported-activity',
+            date: done.date,
+            externalId: 'coros-1',
+            sport: 'rock_climbing',
+            durationMin: done.durationMin + 30,
+            avgHr: 128,
+            maxHr: 171,
+          },
+        ],
+      },
+      addDays(done.date, 2),
+    );
+    expect(withoutImport.loadStatus.acute7d).toBe(8 * done.durationMin);
+    expect(withImport.loadStatus.acute7d).toBe(8 * (done.durationMin + 30));
+  });
+
+  it('counts imported climb sends toward the PR grade', () => {
+    const events: UserState['events'] = [
+      {
+        kind: 'imported-activity',
+        date: '2026-08-05',
+        externalId: 'coros-2',
+        sport: 'rock_climbing',
+        durationMin: 80,
+        avgHr: null,
+        maxHr: null,
+        climbs: [
+          { result: 'send', grade: 7 },
+          { result: 'attempt', grade: 9 },
+          { result: 'send', grade: null },
+        ],
+      },
+    ];
+    const metrics = computeMetrics({ ...base, events }, '2026-08-08');
+    expect(metrics.prGrade).toBe(7);
+    expect(metrics.prDate).toBe('2026-08-05');
   });
 
   it('exposes the effective goal and availability, reflecting later events', () => {

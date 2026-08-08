@@ -8,6 +8,15 @@ export interface AppState {
   events?: PlanEvent[];
 }
 
+export interface FitImportReport {
+  skipped: boolean;
+  date: string;
+  sport: string;
+  durationMin: number;
+  avgHr: number | null;
+  maxHr: number | null;
+}
+
 export function localToday(): string {
   return new Date().toLocaleDateString('en-CA');
 }
@@ -28,5 +37,9 @@ export const api = {
   event: (event: PlanEvent) =>
     fetch(`/api/events${q()}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(event) }).then((r) =>
       json<AppState>(r),
+    ),
+  importFit: (file: File) =>
+    fetch(`/api/import/fit${q()}`, { method: 'POST', headers: { 'Content-Type': 'application/octet-stream' }, body: file }).then((r) =>
+      json<AppState & { import: FitImportReport }>(r),
     ),
 };

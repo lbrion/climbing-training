@@ -233,6 +233,9 @@ h3 {
 .hint-flag {
   color: var(--sky);
 }
+.watch {
+  color: var(--sky);
+}
 .missed {
   color: var(--ember);
 }

@@ -4,6 +4,7 @@ import path from 'node:path';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
+import { Decoder, Stream } from '@garmin/fitsdk';
 import { computeMetrics, generatePlan, type PlanEvent, type UserState } from '@climb/engine';
 
 const dbPath = process.env.DB_PATH ?? './data/climb.db';
@@ -86,6 +87,19 @@ const eventSchema = z.discriminatedUnion('kind', [
       z.object({ type: z.literal('skill'), skill: z.enum(['overhang', 'slab', 'dynamic', 'crimps', 'compression', 'endurance']) }),
     ]),
   }),
+  z.object({
+    kind: z.literal('imported-activity'),
+    date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    externalId: z.string().min(1).max(200),
+    sport: z.string().max(60),
+    durationMin: z.number().min(0).max(1440),
+    avgHr: z.number().min(20).max(250).nullable(),
+    maxHr: z.number().min(20).max(250).nullable(),
+    climbs: z
+      .array(z.object({ result: z.enum(['send', 'attempt']), grade: z.number().min(0).max(17).nullable() }))
+      .max(300)
+      .optional(),
+  }),
 ]);
 
 const configSchema = z.object({
@@ -157,6 +171,88 @@ app.post('/api/setup', (req, res) => {
     plan: generatePlan(state, t),
     metrics: computeMetrics(state, t),
     events: state.events,
+  });
+});
+
+// FIT ingestion: parses a watch export (COROS, Garmin, …) into an imported-activity event.
+// Only standard FIT fields are decoded; vendor-specific per-climb data (grades, sends) is not in the
+// public profile, so the response's `report` echoes message/split structure to aid mapping it later.
+type ImportedActivity = Extract<PlanEvent, { kind: 'imported-activity' }>;
+
+function parseFit(buf: Buffer): { event: ImportedActivity; report: Record<string, unknown> } | { error: string } {
+  const stream = Stream.fromBuffer(buf);
+  const decoder = new Decoder(stream);
+  if (!decoder.isFIT() || !decoder.checkIntegrity()) return { error: 'not a valid FIT file' };
+  const { messages, errors } = decoder.read();
+
+  const session = messages.sessionMesgs?.[0];
+  if (!session) return { error: 'FIT file has no session message' };
+  const fileId = messages.fileIdMesgs?.[0];
+  // localDateTime fields decode as raw FIT-epoch seconds (only dateTime fields become JS Dates).
+  const FIT_EPOCH_MS = 631065600000;
+  const toDate = (v: unknown): Date | null => (v instanceof Date ? v : typeof v === 'number' ? new Date(v * 1000 + FIT_EPOCH_MS) : null);
+  const local = toDate(messages.activityMesgs?.[0]?.localTimestamp) ?? toDate(session.startTime);
+  if (!local) return { error: 'FIT file has no usable timestamp' };
+  const date = local.toISOString().slice(0, 10);
+
+  const hrs = (messages.recordMesgs ?? []).map((r) => r.heartRate).filter((h): h is number => typeof h === 'number');
+  const avgHr = session.avgHeartRate ?? (hrs.length ? Math.round(hrs.reduce((a, b) => a + b, 0) / hrs.length) : null);
+  const maxHr = session.maxHeartRate ?? (hrs.length ? Math.max(...hrs) : null);
+
+  const created = fileId?.timeCreated instanceof Date ? fileId.timeCreated.toISOString() : String(fileId?.timeCreated ?? '');
+  const event: ImportedActivity = {
+    kind: 'imported-activity',
+    date,
+    externalId: `${fileId?.manufacturer ?? 'fit'}-${fileId?.serialNumber ?? 0}-${created || date}`,
+    sport: [session.sport, session.subSport].filter(Boolean).join('/') || 'unknown',
+    durationMin: Math.max(1, Math.round((session.totalTimerTime ?? 0) / 60)),
+    avgHr,
+    maxHr,
+  };
+
+  const splits = messages.splitMesgs ?? [];
+  const report = {
+    date,
+    sport: event.sport,
+    durationMin: event.durationMin,
+    avgHr,
+    maxHr,
+    messageCounts: Object.fromEntries(Object.entries(messages).map(([k, v]) => [k, Array.isArray(v) ? v.length : 1])),
+    splitTypes: splits.map((s) => s.splitType),
+    splitSample: splits.slice(0, 3),
+    decodeErrors: errors.map(String),
+  };
+  return { event, report };
+}
+
+app.post('/api/import/fit', express.raw({ type: () => true, limit: '30mb' }), (req, res) => {
+  const state = loadState();
+  if (!state) return res.status(409).json({ error: 'not configured' });
+  if (!Buffer.isBuffer(req.body) || req.body.length === 0) return res.status(400).json({ error: 'empty upload' });
+
+  let parsed: ReturnType<typeof parseFit>;
+  try {
+    parsed = parseFit(req.body);
+  } catch (e) {
+    return res.status(400).json({ error: `could not decode FIT file: ${String(e)}` });
+  }
+  if ('error' in parsed) return res.status(400).json({ error: parsed.error });
+
+  const valid = eventSchema.safeParse(parsed.event);
+  if (!valid.success) return res.status(400).json({ error: valid.error.flatten() });
+
+  const duplicate = state.events.some((e) => e.kind === 'imported-activity' && e.externalId === parsed.event.externalId);
+  if (!duplicate) db.prepare('INSERT INTO events (user_id, payload) VALUES (?, ?)').run(USER, JSON.stringify(valid.data));
+
+  const next = loadState()!;
+  const t = today(req);
+  res.json({
+    configured: true,
+    config: next.config,
+    plan: generatePlan(next, t),
+    metrics: computeMetrics(next, t),
+    events: next.events,
+    import: { skipped: duplicate, ...parsed.report },
   });
 });
 

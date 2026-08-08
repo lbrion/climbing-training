@@ -44,11 +44,12 @@ CI (`.github/workflows/ci.yml`) runs `check` + `build` on every PR and push to `
 
 ### API and persistence (`server/src/index.ts` — deliberately a single file)
 
-| To change…                         | Edit                                                                                                                                                             |
-| ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Add/modify an endpoint             | `server/src/index.ts` route handlers                                                                                                                             |
-| Accept a new event or config field | zod `eventSchema` / `configSchema` in the same file — **zod at the boundary is mandatory**; the engine trusts its inputs, so validation lives here and only here |
-| Storage                            | the `db.exec` schema at the top; two tables: `users` (config JSON) and `events` (append-only payload JSON)                                                       |
+| To change…                         | Edit                                                                                                                                                                                                                                                                                                                              |
+| ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Add/modify an endpoint             | `server/src/index.ts` route handlers                                                                                                                                                                                                                                                                                              |
+| Accept a new event or config field | zod `eventSchema` / `configSchema` in the same file — **zod at the boundary is mandatory**; the engine trusts its inputs, so validation lives here and only here                                                                                                                                                                  |
+| Storage                            | the `db.exec` schema at the top; two tables: `users` (config JSON) and `events` (append-only payload JSON)                                                                                                                                                                                                                        |
+| Watch/FIT file import              | `parseFit` + `POST /api/import/fit` in the same file — decodes standard FIT fields via `@garmin/fitsdk`, appends an `imported-activity` event, dedupes by `externalId`. Vendor per-climb fields (grades/sends) are not in the public FIT profile; the response `report` echoes message structure to help map them from real files |
 
 **Server rules:**
 

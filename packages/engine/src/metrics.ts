@@ -1,4 +1,4 @@
-import { addDays, daysBetween, generatePlan } from './generate.js';
+import { addDays, daysBetween, generatePlan, importedMinutesByDate } from './generate.js';
 import { TEMPLATES } from './templates.js';
 import type { PlanEvent, UserState } from './types.js';
 
@@ -41,7 +41,17 @@ export function computeMetrics(state: UserState, today: string): PlanMetrics {
       prDate = fb.date;
     }
   }
+  for (const e of state.events) {
+    if (e.kind !== 'imported-activity') continue;
+    for (const c of e.climbs ?? []) {
+      if (c.result === 'send' && c.grade != null && (prGrade === null || c.grade > prGrade)) {
+        prGrade = c.grade;
+        prDate = e.date;
+      }
+    }
+  }
 
+  const imported = importedMinutesByDate(state.events);
   const weeklyLoads: { weekStart: string; load: number }[] = [];
   for (let i = 3; i >= 0; i--) {
     const weekStart = addDays(today, -7 * (i + 1) + 1);
@@ -51,7 +61,7 @@ export function computeMetrics(state: UserState, today: string): PlanMetrics {
       const offset = daysBetween(weekStart, fb.date);
       if (offset < 0 || offset > 6) continue;
       const s = byId.get(fb.sessionId);
-      load += fb.rpe * (s ? s.durationMin : 60);
+      load += fb.rpe * (imported.get(fb.date) ?? (s ? s.durationMin : 60));
     }
     weeklyLoads.push({ weekStart, load });
   }

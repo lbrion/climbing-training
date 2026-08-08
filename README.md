@@ -38,6 +38,7 @@ See `CLAUDE.md` for the full "to change X, edit Y" guide, the layering rules (pu
 - Load is tracked with session-RPE (RPE × minutes). If the acute:chronic ratio exceeds 1.3, the coming week's intensity is capped.
 - Pain reports of severity 2+ remove finger-loading (or heavy pulling, for elbow/shoulder) sessions for 14 days and substitute technique and mobility work.
 - Missed sessions and moved sessions are events; the plan regenerates deterministically around them.
+- Workouts recorded on a watch (COROS, Garmin, …) can be imported as FIT files from Settings; the real duration and heart rate replace planned estimates in the load calculation and show up in History.
 
 ## Develop
 

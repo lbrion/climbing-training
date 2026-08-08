@@ -6,6 +6,7 @@ function fmtDay(iso: string): string {
 }
 
 type Feedback = Extract<PlanEvent, { kind: 'feedback' }>;
+type Imported = Extract<PlanEvent, { kind: 'imported-activity' }>;
 
 export function HistoryView({ state, onOpen }: { state: AppState; onOpen: (s: Session) => void }) {
   const plan = state.plan!;
@@ -13,8 +14,10 @@ export function HistoryView({ state, onOpen }: { state: AppState; onOpen: (s: Se
   const today = plan.generatedFor;
 
   const lastFeedback = new Map<string, Feedback>();
+  const importedByDate = new Map<string, Imported>();
   for (const e of state.events ?? []) {
     if (e.kind === 'feedback') lastFeedback.set(e.sessionId, e);
+    if (e.kind === 'imported-activity') importedByDate.set(e.date, e);
   }
   const past = plan.sessions.filter((s) => s.date < today).sort((a, b) => b.date.localeCompare(a.date));
 
@@ -68,6 +71,7 @@ export function HistoryView({ state, onOpen }: { state: AppState; onOpen: (s: Se
       {past.length === 0 && <p className="hint">Nothing logged yet. Your completed sessions will show up here.</p>}
       {past.map((s) => {
         const fb = lastFeedback.get(s.id);
+        const im = importedByDate.get(s.date);
         return (
           <div
             key={s.id}
@@ -87,6 +91,11 @@ export function HistoryView({ state, onOpen }: { state: AppState; onOpen: (s: Se
               {fb?.pain && (
                 <span className="mono missed">
                   {fb.pain.site.toUpperCase()} PAIN {fb.pain.severity}
+                </span>
+              )}
+              {im && (
+                <span className="mono watch">
+                  ⌚ {im.durationMin} MIN{im.avgHr ? ` · ${im.avgHr} BPM` : ''}
                 </span>
               )}
             </div>

@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import type { Config, Goal, Plan } from '@climb/engine';
-import { api, localToday, type AppState } from './api.js';
+import { api, localToday, type AppState, type FitImportReport } from './api.js';
 
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const SKILLS = ['overhang', 'slab', 'dynamic', 'crimps', 'compression', 'endurance'] as const;
@@ -25,6 +25,23 @@ export function Settings({
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [imported, setImported] = useState<FitImportReport | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const uploadFit = async (file: File) => {
+    setBusy(true);
+    setError(null);
+    setImported(null);
+    try {
+      const next = await api.importFit(file);
+      setImported(next.import);
+      onUpdate(next);
+    } catch (e) {
+      setError(String(e));
+    }
+    setBusy(false);
+    if (fileRef.current) fileRef.current.value = '';
+  };
 
   const goalDirty = JSON.stringify(goal) !== JSON.stringify(plan.goal);
   const minutesDirty = JSON.stringify(minutes) !== JSON.stringify(plan.availability.minutesByWeekday);
@@ -154,6 +171,32 @@ export function Settings({
           assessed {config.assessment.date}
         </p>
         <button onClick={onRerunAssessment}>Re-run assessment…</button>
+      </section>
+
+      <section>
+        <h2>Watch data</h2>
+        <p className="hint">
+          Import a workout from your watch: in the COROS app open the activity, tap ⋯ → Export Data → FIT, then upload it here. Heart rate
+          and the real duration feed your training load.
+        </p>
+        <input
+          ref={fileRef}
+          type="file"
+          accept=".fit,application/octet-stream"
+          hidden
+          onChange={(e) => e.target.files?.[0] && uploadFit(e.target.files[0])}
+        />
+        <button disabled={busy} onClick={() => fileRef.current?.click()}>
+          {busy ? 'Importing…' : 'Import FIT file…'}
+        </button>
+        {imported && (
+          <p className="hint">
+            {imported.skipped
+              ? 'Already imported — skipped.'
+              : `Imported: ${imported.sport} on ${imported.date}, ${imported.durationMin} min` +
+                (imported.avgHr ? `, avg HR ${imported.avgHr}` : '')}
+          </p>
+        )}
       </section>
 
       {error && <div className="notice">{error}</div>}
