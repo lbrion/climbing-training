@@ -131,6 +131,10 @@ export interface ImportedBlock {
   startSec: number;
   durationSec: number;
   ascentM?: number;
+  /** Decoded from COROS vendor fields; absent when the watch/file doesn't mark outcomes. */
+  result?: 'send' | 'attempt';
+  avgHr?: number;
+  maxHr?: number;
 }
 
 export interface UserState {

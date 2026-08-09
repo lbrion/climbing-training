@@ -43,7 +43,8 @@ export function HrChart({ series, avgHr, blocks }: { series: number[]; avgHr: nu
           const x1 = x(clamp(b.startSec / 60));
           const x2 = x(clamp((b.startSec + b.durationSec) / 60));
           if (x2 - x1 < 1) return null;
-          return <rect key={i} className="climb-band" x={x1} y={PAD.t} width={x2 - x1} height={H - PAD.t - PAD.b} />;
+          const cls = b.result === 'send' ? 'climb-band send' : b.result === 'attempt' ? 'climb-band attempt' : 'climb-band';
+          return <rect key={i} className={cls} x={x1} y={PAD.t} width={x2 - x1} height={H - PAD.t - PAD.b} />;
         })}
       {[lo, mid, hi].map((v) => (
         <g key={v}>

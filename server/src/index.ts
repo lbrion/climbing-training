@@ -114,6 +114,9 @@ const eventSchema = z.discriminatedUnion('kind', [
           startSec: z.number().min(0).max(86400),
           durationSec: z.number().min(0).max(86400),
           ascentM: z.number().min(0).max(10000).optional(),
+          result: z.enum(['send', 'attempt']).optional(),
+          avgHr: z.number().min(20).max(250).optional(),
+          maxHr: z.number().min(20).max(250).optional(),
         }),
       )
       .max(400)
@@ -206,7 +209,7 @@ function parseFit(buf: Buffer): { event: ImportedActivity; report: Record<string
   const stream = Stream.fromBuffer(buf);
   const decoder = new Decoder(stream);
   if (!decoder.isFIT() || !decoder.checkIntegrity()) return { error: 'not a valid FIT file' };
-  const { messages, errors } = decoder.read();
+  const { messages, errors } = decoder.read({ includeUnknownData: true });
 
   const session = messages.sessionMesgs?.[0];
   if (!session) return { error: 'FIT file has no session message' };
@@ -247,20 +250,31 @@ function parseFit(buf: Buffer): { event: ImportedActivity; report: Record<string
 
   // Climb/rest structure from split messages (COROS bouldering mode: climbActive/climbRest segments).
   const sessionStart = toDate(session.startTime) ?? local;
+  type Block = NonNullable<ImportedActivity['blocks']>[number];
   const blocks = (messages.splitMesgs ?? [])
     .filter((s) => s.splitType === 'climbActive' || s.splitType === 'climbRest')
     .map((s) => {
       const bStart = toDate(s.startTime);
       const kind: 'climb' | 'rest' = s.splitType === 'climbActive' ? 'climb' : 'rest';
-      const block: { kind: 'climb' | 'rest'; startSec: number; durationSec: number; ascentM?: number } = {
+      const block: Block = {
         kind,
         startSec: bStart ? Math.max(0, Math.round((bStart.getTime() - sessionStart.getTime()) / 1000)) : 0,
         durationSec: Math.round(s.totalTimerTime ?? 0),
       };
-      if (kind === 'climb' && typeof s.totalAscent === 'number') block.ascentM = s.totalAscent;
+      if (kind === 'climb') {
+        if (typeof s.totalAscent === 'number') block.ascentM = s.totalAscent;
+        // COROS vendor fields on climb splits (verified against the COROS app's own per-climb chart):
+        // 71 = outcome (3 send, 2 attempt), 15/16 = avg/max HR for the climb.
+        const raw = s as unknown as Record<string, unknown>;
+        if (raw['71'] === 3) block.result = 'send';
+        else if (raw['71'] === 2) block.result = 'attempt';
+        if (typeof raw['15'] === 'number') block.avgHr = raw['15'] as number;
+        if (typeof raw['16'] === 'number') block.maxHr = raw['16'] as number;
+      }
       return block;
     })
     .slice(0, 400);
+  const resolved = blocks.filter((b) => b.kind === 'climb' && b.result != null);
   const climbSummary = (messages.splitSummaryMesgs ?? []).find((s) => s.splitType === 'climbActive');
   const restSummary = (messages.splitSummaryMesgs ?? []).find((s) => s.splitType === 'climbRest');
 
@@ -278,6 +292,7 @@ function parseFit(buf: Buffer): { event: ImportedActivity; report: Record<string
   if (typeof session.totalCalories === 'number') event.calories = session.totalCalories;
   if (typeof session.totalAscent === 'number') event.ascentM = session.totalAscent;
   if (blocks.length > 0) event.blocks = blocks;
+  if (resolved.length > 0) event.climbs = resolved.map((b) => ({ result: b.result!, grade: null }));
   if (climbSummary?.totalTimerTime != null) event.climbTimeMin = Math.round(climbSummary.totalTimerTime / 60);
   if (restSummary?.totalTimerTime != null) event.restTimeMin = Math.round(restSummary.totalTimerTime / 60);
   if (climbSummary?.avgHeartRate != null) event.avgHrClimb = climbSummary.avgHeartRate;

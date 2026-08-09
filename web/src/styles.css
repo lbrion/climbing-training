@@ -37,6 +37,8 @@
   --display: 'Archivo', system-ui, sans-serif;
   --mono: 'Space Mono', ui-monospace, monospace;
   --climb: #5b8ef0;
+  --send: #2f9e6e;
+  --attempt: #b87f1f;
   color-scheme: dark;
 }
 body {
@@ -290,6 +292,23 @@ h3 {
   fill: var(--climb);
   opacity: 0.13;
 }
+.hr-chart .climb-band.send {
+  fill: var(--send);
+  opacity: 0.32;
+}
+.hr-chart .climb-band.attempt {
+  fill: var(--attempt);
+  opacity: 0.32;
+}
+.outcome-legend {
+  margin-top: 8px;
+}
+.ldot-send {
+  background: var(--send);
+}
+.ldot-attempt {
+  background: var(--attempt);
+}
 .ratio-bar {
   display: flex;
   gap: 2px;
@@ -311,17 +330,17 @@ h3 {
   color: var(--muted);
   font-size: 11px;
 }
-.dot {
+.ldot {
   display: inline-block;
   width: 8px;
   height: 8px;
   border-radius: 2px;
   margin-right: 5px;
 }
-.dot-climb {
+.ldot-climb {
   background: var(--climb);
 }
-.dot-rest {
+.ldot-rest {
   background: var(--surface2);
   border: 1px solid var(--line);
 }

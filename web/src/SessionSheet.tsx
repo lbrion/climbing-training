@@ -116,20 +116,39 @@ export function SessionSheet({
                 </div>
                 <div className="ratio-labels">
                   <span className="mono">
-                    <i className="dot dot-climb" />
+                    <i className="ldot ldot-climb" />
                     CLIMB {imported.climbTimeMin} MIN{imported.avgHrClimb != null ? ` · ${imported.avgHrClimb} BPM` : ''}
                   </span>
                   <span className="mono">
-                    <i className="dot dot-rest" />
+                    <i className="ldot ldot-rest" />
                     REST {imported.restTimeMin} MIN{imported.avgHrRest != null ? ` · ${imported.avgHrRest} BPM` : ''}
                   </span>
                 </div>
-                {imported.blocks && imported.blocks.some((b) => b.kind === 'climb') && (
-                  <p className="hint">
-                    {imported.blocks.filter((b) => b.kind === 'climb').length} climb block
-                    {imported.blocks.filter((b) => b.kind === 'climb').length === 1 ? '' : 's'} detected — shaded on the chart.
-                  </p>
-                )}
+                {(() => {
+                  const climbs = (imported.blocks ?? []).filter((b) => b.kind === 'climb');
+                  if (climbs.length === 0) return null;
+                  const sends = climbs.filter((b) => b.result === 'send').length;
+                  const attempts = climbs.filter((b) => b.result === 'attempt').length;
+                  if (sends + attempts > 0) {
+                    return (
+                      <div className="ratio-labels outcome-legend">
+                        <span className="mono">
+                          <i className="ldot ldot-send" />
+                          {sends} SENT
+                        </span>
+                        <span className="mono">
+                          <i className="ldot ldot-attempt" />
+                          {attempts} ATTEMPTED
+                        </span>
+                      </div>
+                    );
+                  }
+                  return (
+                    <p className="hint">
+                      {climbs.length} climb block{climbs.length === 1 ? '' : 's'} detected — shaded on the chart.
+                    </p>
+                  );
+                })()}
               </div>
             )}
           </div>
