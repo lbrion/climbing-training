@@ -1,4 +1,4 @@
-import type { PlanEvent, Session } from '@climb/engine';
+import { latestImports, type PlanEvent, type Session } from '@climb/engine';
 import type { AppState } from './api.js';
 
 function fmtDay(iso: string): string {
@@ -14,11 +14,11 @@ export function HistoryView({ state, onOpen }: { state: AppState; onOpen: (s: Se
   const today = plan.generatedFor;
 
   const lastFeedback = new Map<string, Feedback>();
-  const importedByDate = new Map<string, Imported>();
   for (const e of state.events ?? []) {
     if (e.kind === 'feedback') lastFeedback.set(e.sessionId, e);
-    if (e.kind === 'imported-activity') importedByDate.set(e.date, e);
   }
+  const importedByDate = new Map<string, Imported>();
+  for (const e of latestImports(state.events ?? [])) importedByDate.set(e.date, e);
   const past = plan.sessions.filter((s) => s.date < today).sort((a, b) => b.date.localeCompare(a.date));
 
   const maxLoad = Math.max(1, ...(metrics?.weeklyLoads.map((w) => w.load) ?? [1]));

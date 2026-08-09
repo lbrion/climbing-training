@@ -105,6 +105,23 @@ const eventSchema = z.discriminatedUnion('kind', [
       .array(z.object({ result: z.enum(['send', 'attempt']), grade: z.number().min(0).max(17).nullable() }))
       .max(300)
       .optional(),
+    calories: z.number().min(0).max(20000).optional(),
+    ascentM: z.number().min(0).max(10000).optional(),
+    blocks: z
+      .array(
+        z.object({
+          kind: z.enum(['climb', 'rest']),
+          startSec: z.number().min(0).max(86400),
+          durationSec: z.number().min(0).max(86400),
+          ascentM: z.number().min(0).max(10000).optional(),
+        }),
+      )
+      .max(400)
+      .optional(),
+    climbTimeMin: z.number().min(0).max(1440).optional(),
+    restTimeMin: z.number().min(0).max(1440).optional(),
+    avgHrClimb: z.number().min(20).max(250).nullable().optional(),
+    avgHrRest: z.number().min(20).max(250).nullable().optional(),
   }),
 ]);
 
@@ -228,6 +245,25 @@ function parseFit(buf: Buffer): { event: ImportedActivity; report: Record<string
     }
   }
 
+  // Climb/rest structure from split messages (COROS bouldering mode: climbActive/climbRest segments).
+  const sessionStart = toDate(session.startTime) ?? local;
+  const blocks = (messages.splitMesgs ?? [])
+    .filter((s) => s.splitType === 'climbActive' || s.splitType === 'climbRest')
+    .map((s) => {
+      const bStart = toDate(s.startTime);
+      const kind: 'climb' | 'rest' = s.splitType === 'climbActive' ? 'climb' : 'rest';
+      const block: { kind: 'climb' | 'rest'; startSec: number; durationSec: number; ascentM?: number } = {
+        kind,
+        startSec: bStart ? Math.max(0, Math.round((bStart.getTime() - sessionStart.getTime()) / 1000)) : 0,
+        durationSec: Math.round(s.totalTimerTime ?? 0),
+      };
+      if (kind === 'climb' && typeof s.totalAscent === 'number') block.ascentM = s.totalAscent;
+      return block;
+    })
+    .slice(0, 400);
+  const climbSummary = (messages.splitSummaryMesgs ?? []).find((s) => s.splitType === 'climbActive');
+  const restSummary = (messages.splitSummaryMesgs ?? []).find((s) => s.splitType === 'climbRest');
+
   const created = fileId?.timeCreated instanceof Date ? fileId.timeCreated.toISOString() : String(fileId?.timeCreated ?? '');
   const event: ImportedActivity = {
     kind: 'imported-activity',
@@ -239,6 +275,13 @@ function parseFit(buf: Buffer): { event: ImportedActivity; report: Record<string
     maxHr,
     hrSeries,
   };
+  if (typeof session.totalCalories === 'number') event.calories = session.totalCalories;
+  if (typeof session.totalAscent === 'number') event.ascentM = session.totalAscent;
+  if (blocks.length > 0) event.blocks = blocks;
+  if (climbSummary?.totalTimerTime != null) event.climbTimeMin = Math.round(climbSummary.totalTimerTime / 60);
+  if (restSummary?.totalTimerTime != null) event.restTimeMin = Math.round(restSummary.totalTimerTime / 60);
+  if (climbSummary?.avgHeartRate != null) event.avgHrClimb = climbSummary.avgHeartRate;
+  if (restSummary?.avgHeartRate != null) event.avgHrRest = restSummary.avgHeartRate;
 
   const report = {
     date,
@@ -294,6 +337,50 @@ app.post('/api/import/fit', express.raw({ type: () => true, limit: '30mb' }), (r
     metrics: computeMetrics(next, t),
     events: next.events,
     import: { skipped: duplicate, ...parsed.report },
+  });
+});
+
+// Re-parse stored FIT files with the current parser; when the result differs from the latest event for that
+// externalId, append a superseding event (the engine takes the last event per externalId). Run after parser upgrades.
+app.post('/api/import/reprocess', (req, res) => {
+  const state = loadState();
+  if (!state) return res.status(409).json({ error: 'not configured' });
+  const latest = new Map<string, PlanEvent>();
+  for (const e of state.events) {
+    if (e.kind === 'imported-activity') latest.set(e.externalId, e);
+  }
+  const rows = db.prepare('SELECT external_id, bytes FROM fit_files').all() as { external_id: string; bytes: Buffer }[];
+  let updated = 0;
+  const failures: string[] = [];
+  for (const row of rows) {
+    try {
+      const parsed = parseFit(row.bytes);
+      if ('error' in parsed) {
+        failures.push(`${row.external_id}: ${parsed.error}`);
+        continue;
+      }
+      const valid = eventSchema.safeParse(parsed.event);
+      if (!valid.success) {
+        failures.push(`${row.external_id}: schema mismatch`);
+        continue;
+      }
+      const prev = latest.get(parsed.event.externalId);
+      if (prev && JSON.stringify(prev) === JSON.stringify(valid.data)) continue;
+      db.prepare('INSERT INTO events (user_id, payload) VALUES (?, ?)').run(USER, JSON.stringify(valid.data));
+      updated++;
+    } catch (e) {
+      failures.push(`${row.external_id}: ${String(e)}`);
+    }
+  }
+  const next = loadState()!;
+  const t = today(req);
+  res.json({
+    configured: true,
+    config: next.config,
+    plan: generatePlan(next, t),
+    metrics: computeMetrics(next, t),
+    events: next.events,
+    reprocess: { files: rows.length, updated, failures },
   });
 });
 

@@ -51,11 +51,19 @@ function recentPain(events: PlanEvent[], today: string): RecentPain {
   return out;
 }
 
+/** Current version of each imported activity: reprocessing appends a superseding event, so the last one per externalId wins. */
+export function latestImports(events: PlanEvent[]): Extract<PlanEvent, { kind: 'imported-activity' }>[] {
+  const byId = new Map<string, Extract<PlanEvent, { kind: 'imported-activity' }>>();
+  for (const e of events) {
+    if (e.kind === 'imported-activity') byId.set(e.externalId, e);
+  }
+  return [...byId.values()];
+}
+
 /** Actual trained minutes per date from watch imports; the longest activity wins when a date has several. */
 export function importedMinutesByDate(events: PlanEvent[]): Map<string, number> {
   const out = new Map<string, number>();
-  for (const e of events) {
-    if (e.kind !== 'imported-activity') continue;
+  for (const e of latestImports(events)) {
     out.set(e.date, Math.max(out.get(e.date) ?? 0, e.durationMin));
   }
   return out;

@@ -420,6 +420,29 @@ describe('generatePlan', () => {
     expect(metrics.prDate).toBe('2026-08-05');
   });
 
+  it('supersedes an imported activity when a reprocessed event shares its externalId', () => {
+    const first = {
+      kind: 'imported-activity' as const,
+      date: '2026-08-05',
+      externalId: 'coros-9',
+      sport: 'rockClimbing',
+      durationMin: 60,
+      avgHr: 120,
+      maxHr: 150,
+    };
+    const reprocessed = { ...first, durationMin: 95, climbs: [{ result: 'send' as const, grade: 6 }] };
+    const plan0 = generatePlan(base, '2026-08-08');
+    const done = plan0.sessions.find((s) => s.date === '2026-08-05')!;
+    const events: UserState['events'] = [
+      first,
+      { kind: 'feedback', sessionId: done.id, date: '2026-08-05', completed: true, rpe: 7, pain: null },
+      reprocessed,
+    ];
+    const plan = generatePlan({ ...base, events }, '2026-08-08');
+    expect(plan.loadStatus.acute7d).toBe(7 * 95);
+    expect(computeMetrics({ ...base, events }, '2026-08-08').prGrade).toBe(6);
+  });
+
   it('exposes the effective goal and availability, reflecting later events', () => {
     const noEvents = generatePlan(base, '2026-08-03');
     expect(noEvents.goal).toEqual(base.config.goal);

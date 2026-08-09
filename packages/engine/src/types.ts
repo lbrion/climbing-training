@@ -110,11 +110,27 @@ export type PlanEvent =
       /** Per-minute average heart rate from the recording, index = minute from start. */
       hrSeries?: number[];
       climbs?: ImportedClimb[];
+      calories?: number;
+      /** Meters ascended while climbing (session total). */
+      ascentM?: number;
+      /** Auto-detected climb/rest segments (e.g. COROS bouldering mode), offsets from session start. */
+      blocks?: ImportedBlock[];
+      climbTimeMin?: number;
+      restTimeMin?: number;
+      avgHrClimb?: number | null;
+      avgHrRest?: number | null;
     };
 
 export interface ImportedClimb {
   result: 'send' | 'attempt';
   grade: VGrade | null;
+}
+
+export interface ImportedBlock {
+  kind: 'climb' | 'rest';
+  startSec: number;
+  durationSec: number;
+  ascentM?: number;
 }
 
 export interface UserState {

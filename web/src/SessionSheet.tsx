@@ -102,8 +102,36 @@ export function SessionSheet({
               <span className="mono watch">⌚ {imported.durationMin} MIN</span>
               {imported.avgHr != null && <span className="mono">AVG {imported.avgHr}</span>}
               {imported.maxHr != null && <span className="mono">MAX {imported.maxHr}</span>}
+              {imported.ascentM != null && imported.ascentM > 0 && <span className="mono">↑ {imported.ascentM} M</span>}
+              {imported.calories != null && imported.calories > 0 && <span className="mono">{imported.calories} KCAL</span>}
             </div>
-            {imported.hrSeries && imported.hrSeries.length > 1 && <HrChart series={imported.hrSeries} avgHr={imported.avgHr} />}
+            {imported.hrSeries && imported.hrSeries.length > 1 && (
+              <HrChart series={imported.hrSeries} avgHr={imported.avgHr} blocks={imported.blocks} />
+            )}
+            {imported.climbTimeMin != null && imported.restTimeMin != null && imported.climbTimeMin + imported.restTimeMin > 0 && (
+              <div className="ratio">
+                <div className="ratio-bar">
+                  <div className="seg-climb" style={{ flexGrow: imported.climbTimeMin }} />
+                  <div className="seg-rest" style={{ flexGrow: imported.restTimeMin }} />
+                </div>
+                <div className="ratio-labels">
+                  <span className="mono">
+                    <i className="dot dot-climb" />
+                    CLIMB {imported.climbTimeMin} MIN{imported.avgHrClimb != null ? ` · ${imported.avgHrClimb} BPM` : ''}
+                  </span>
+                  <span className="mono">
+                    <i className="dot dot-rest" />
+                    REST {imported.restTimeMin} MIN{imported.avgHrRest != null ? ` · ${imported.avgHrRest} BPM` : ''}
+                  </span>
+                </div>
+                {imported.blocks && imported.blocks.some((b) => b.kind === 'climb') && (
+                  <p className="hint">
+                    {imported.blocks.filter((b) => b.kind === 'climb').length} climb block
+                    {imported.blocks.filter((b) => b.kind === 'climb').length === 1 ? '' : 's'} detected — shaded on the chart.
+                  </p>
+                )}
+              </div>
+            )}
           </div>
         )}
 

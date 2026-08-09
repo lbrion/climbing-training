@@ -36,6 +36,7 @@
   --sky: #7ba7f7;
   --display: 'Archivo', system-ui, sans-serif;
   --mono: 'Space Mono', ui-monospace, monospace;
+  --climb: #5b8ef0;
   color-scheme: dark;
 }
 body {
@@ -284,6 +285,45 @@ h3 {
   fill: var(--chalk);
   font-family: var(--mono);
   font-size: 9px;
+}
+.hr-chart .climb-band {
+  fill: var(--climb);
+  opacity: 0.13;
+}
+.ratio-bar {
+  display: flex;
+  gap: 2px;
+  height: 10px;
+  border-radius: 5px;
+  overflow: hidden;
+  margin: 12px 0 6px;
+}
+.ratio-bar .seg-climb {
+  background: var(--climb);
+}
+.ratio-bar .seg-rest {
+  background: var(--surface2);
+  border: 1px solid var(--line);
+}
+.ratio-labels {
+  display: flex;
+  justify-content: space-between;
+  color: var(--muted);
+  font-size: 11px;
+}
+.dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  margin-right: 5px;
+}
+.dot-climb {
+  background: var(--climb);
+}
+.dot-rest {
+  background: var(--surface2);
+  border: 1px solid var(--line);
 }
 .missed {
   color: var(--ember);

@@ -1,4 +1,4 @@
-import { addDays, daysBetween, generatePlan, importedMinutesByDate } from './generate.js';
+import { addDays, daysBetween, generatePlan, importedMinutesByDate, latestImports } from './generate.js';
 import { TEMPLATES } from './templates.js';
 import type { PlanEvent, UserState } from './types.js';
 
@@ -41,8 +41,7 @@ export function computeMetrics(state: UserState, today: string): PlanMetrics {
       prDate = fb.date;
     }
   }
-  for (const e of state.events) {
-    if (e.kind !== 'imported-activity') continue;
+  for (const e of latestImports(state.events)) {
     for (const c of e.climbs ?? []) {
       if (c.result === 'send' && c.grade != null && (prGrade === null || c.grade > prGrade)) {
         prGrade = c.grade;

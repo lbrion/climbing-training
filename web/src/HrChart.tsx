@@ -1,10 +1,11 @@
 import { useRef, useState } from 'react';
+import type { ImportedBlock } from '@climb/engine';
 
 const W = 320;
 const H = 116;
 const PAD = { l: 30, r: 8, t: 18, b: 16 };
 
-export function HrChart({ series, avgHr }: { series: number[]; avgHr: number | null }) {
+export function HrChart({ series, avgHr, blocks }: { series: number[]; avgHr: number | null; blocks?: ImportedBlock[] }) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [cursor, setCursor] = useState<number | null>(null);
   if (series.length < 2) return null;
@@ -35,6 +36,15 @@ export function HrChart({ series, avgHr }: { series: number[]; avgHr: number | n
       onPointerDown={(e) => scrub(e.clientX)}
       onPointerLeave={() => setCursor(null)}
     >
+      {(blocks ?? [])
+        .filter((b) => b.kind === 'climb')
+        .map((b, i) => {
+          const clamp = (m: number) => Math.max(0, Math.min(series.length - 1, m));
+          const x1 = x(clamp(b.startSec / 60));
+          const x2 = x(clamp((b.startSec + b.durationSec) / 60));
+          if (x2 - x1 < 1) return null;
+          return <rect key={i} className="climb-band" x={x1} y={PAD.t} width={x2 - x1} height={H - PAD.t - PAD.b} />;
+        })}
       {[lo, mid, hi].map((v) => (
         <g key={v}>
           <line className="grid" x1={PAD.l} y1={y(v)} x2={W - PAD.r} y2={y(v)} />
