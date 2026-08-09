@@ -325,7 +325,10 @@ app.post('/api/import/fit', express.raw({ type: () => true, limit: '30mb' }), (r
     req.body,
     new Date().toISOString(),
   );
-  const duplicate = state.events.some((e) => e.kind === 'imported-activity' && e.externalId === parsed.event.externalId);
+  // Skip only when the latest event for this file is byte-identical; a re-upload after a parser
+  // upgrade appends a superseding event (the engine takes the last event per externalId).
+  const prior = [...state.events].reverse().find((e) => e.kind === 'imported-activity' && e.externalId === parsed.event.externalId);
+  const duplicate = prior != null && JSON.stringify(prior) === JSON.stringify(valid.data);
   if (!duplicate) db.prepare('INSERT INTO events (user_id, payload) VALUES (?, ?)').run(USER, JSON.stringify(valid.data));
 
   const next = loadState()!;
