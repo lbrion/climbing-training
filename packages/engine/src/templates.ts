@@ -145,14 +145,20 @@ export const TEMPLATES: Record<SessionType, Template> = {
     minExperienceYears: 0,
     fingerLoad: false,
     exercises: (phase) => [
+      { name: 'Warm-up', detail: 'Band shoulders, scap pull-ups, easy rows', sets: '8–10 min' },
+      {
+        name: 'Front lever progression',
+        detail: 'While fresh, before any pulling: 5–8s holds at your current progression, full rest, stop while crisp',
+        sets: '3–4 sets',
+      },
       {
         name: 'Weighted pull-ups',
         detail: phase === 'peak' ? 'Heavy triples, 3 min rest' : '5 reps, hard but 1–2 in reserve',
         sets: '4–5 sets',
       },
       { name: 'Rows or ring work', detail: 'Horizontal pulling for shoulder balance', sets: '3×8' },
-      { name: 'Core', detail: 'Front lever progressions or hanging leg raises', sets: '3 sets' },
       { name: 'Push', detail: 'Overhead press or push-ups', sets: '3×8' },
+      { name: 'Optional core', detail: 'Hanging leg raises — only if anything is left in the tank', sets: '2–3 sets' },
     ],
   },
   'power-endurance': {
