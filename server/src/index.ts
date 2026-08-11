@@ -67,6 +67,7 @@ const eventSchema = z.discriminatedUnion('kind', [
       .optional(),
     topGrade: z.number().min(0).max(17).nullable().optional(),
     notes: z.string().max(2000).optional(),
+    exercisesDone: z.array(z.number().int().min(0).max(50)).max(50).optional(),
   }),
   z.object({
     kind: z.literal('readiness'),

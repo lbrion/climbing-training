@@ -59,6 +59,8 @@ export interface Exercise {
   name: string;
   detail: string;
   sets?: string;
+  /** Rest guidance between sets/attempts of this exercise, e.g. "3–5 min between attempts". */
+  rest?: string;
 }
 
 export interface Session {
@@ -93,6 +95,8 @@ export type PlanEvent =
       actualType?: SessionType | null;
       topGrade?: number | null;
       notes?: string;
+      /** Indices into the session's exercise list that were checked off during the session. */
+      exercisesDone?: number[];
     }
   | { kind: 'readiness'; date: string; level: 1 | 2 | 3 }
   | { kind: 'move'; sessionId: string; fromDate: string; toDate: string }

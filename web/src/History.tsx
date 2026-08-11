@@ -87,6 +87,11 @@ export function HistoryView({ state, onOpen }: { state: AppState; onOpen: (s: Se
               {fb && !fb.completed && <span className="mono missed">MISSED</span>}
               {!fb && <span className="mono">TAP TO LOG</span>}
               {fb?.rpe != null && <span className="mono">RPE {fb.rpe}</span>}
+              {fb?.exercisesDone && fb.exercisesDone.length > 0 && (
+                <span className="mono">
+                  {fb.exercisesDone.length}/{s.exercises.length} DRILLS
+                </span>
+              )}
               {fb?.topGrade != null && <span className="mono done">V{fb.topGrade}</span>}
               {fb?.pain && (
                 <span className="mono missed">

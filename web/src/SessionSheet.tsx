@@ -26,9 +26,25 @@ export function SessionSheet({
   const [painSeverity, setPainSeverity] = useState<1 | 2 | 3>(1);
   const [moveTo, setMoveTo] = useState(session.date);
   const [busy, setBusy] = useState(false);
+  const [showInfo, setShowInfo] = useState(false);
   const sheetRef = useRef<HTMLDivElement>(null);
   const startY = useRef<number | null>(null);
   const [dragY, setDragY] = useState(0);
+
+  // Mid-session drill checklist: kept on-device until feedback is saved, then recorded on the event.
+  const doneKey = `exdone-${session.id}`;
+  const [exercisesDone, setExercisesDone] = useState<number[]>(() => {
+    try {
+      return (JSON.parse(localStorage.getItem(doneKey) ?? '[]') as number[]).filter((i) => i >= 0 && i < session.exercises.length);
+    } catch {
+      return [];
+    }
+  });
+  const toggleExercise = (i: number) => {
+    const next = exercisesDone.includes(i) ? exercisesDone.filter((x) => x !== i) : [...exercisesDone, i].sort((a, b) => a - b);
+    setExercisesDone(next);
+    localStorage.setItem(doneKey, JSON.stringify(next));
+  };
 
   const onTouchStart = (e: React.TouchEvent) => {
     startY.current = sheetRef.current && sheetRef.current.scrollTop <= 0 ? e.touches[0].clientY : null;
@@ -56,7 +72,9 @@ export function SessionSheet({
       actualType: completed && actualType && actualType !== session.type ? actualType : null,
       topGrade: completed && topGrade !== '' ? topGrade : null,
       notes: notes.trim() || undefined,
+      exercisesDone: completed && exercisesDone.length > 0 ? exercisesDone : undefined,
     });
+    localStorage.removeItem(doneKey);
     onUpdate(next);
   };
 
@@ -78,8 +96,14 @@ export function SessionSheet({
         style={dragY ? { transform: `translateY(${dragY}px)`, transition: 'none' } : undefined}
       >
         <div className="sheet-handle" />
-        <h2>{session.title}</h2>
+        <div className="sheet-title">
+          <h2>{session.title}</h2>
+          <button className="info-btn" aria-label="About this session" onClick={() => setShowInfo(!showInfo)}>
+            i
+          </button>
+        </div>
         <p className="focus">{session.focus}</p>
+        {showInfo && <p className="overview">{TEMPLATES[session.type].overview}</p>}
         {session.hints.map((h, i) => (
           <div key={i} className="hint-line">
             {h}
@@ -87,10 +111,14 @@ export function SessionSheet({
         ))}
         <ul className="exercises">
           {session.exercises.map((ex, i) => (
-            <li key={i}>
-              <strong>{ex.name}</strong>
-              {ex.sets ? <span className="sets"> · {ex.sets}</span> : null}
-              <div>{ex.detail}</div>
+            <li key={i} className={exercisesDone.includes(i) ? 'done-ex' : ''} onClick={() => toggleExercise(i)}>
+              <span className={`checkbox ${exercisesDone.includes(i) ? 'on' : ''}`} aria-hidden />
+              <div className="ex-body">
+                <strong>{ex.name}</strong>
+                {ex.sets ? <span className="sets"> · {ex.sets}</span> : null}
+                <div>{ex.detail}</div>
+                {ex.rest && <div className="rest-chip">REST {ex.rest.toUpperCase()}</div>}
+              </div>
             </li>
           ))}
         </ul>
