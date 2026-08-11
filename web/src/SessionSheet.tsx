@@ -17,7 +17,7 @@ export function SessionSheet({
   onClose: () => void;
   onUpdate: (s: AppState) => void;
 }) {
-  const [completed, setCompleted] = useState(true);
+  const [completed, setCompleted] = useState<boolean | null>(null);
   const [actualType, setActualType] = useState<SessionType | ''>('');
   const [rpe, setRpe] = useState(6);
   const [topGrade, setTopGrade] = useState<number | ''>('');
@@ -61,6 +61,7 @@ export function SessionSheet({
   };
 
   const submitFeedback = async () => {
+    if (completed === null) return;
     setBusy(true);
     const next = await api.event({
       kind: 'feedback',
@@ -184,10 +185,10 @@ export function SessionSheet({
 
         <h3>Log this session</h3>
         <div className="row">
-          <button className={completed ? 'seg on' : 'seg'} onClick={() => setCompleted(true)}>
+          <button className={completed === true ? 'seg on' : 'seg'} onClick={() => setCompleted(true)}>
             Completed
           </button>
-          <button className={!completed ? 'seg on' : 'seg'} onClick={() => setCompleted(false)}>
+          <button className={completed === false ? 'seg on' : 'seg'} onClick={() => setCompleted(false)}>
             Missed
           </button>
         </div>
@@ -248,8 +249,8 @@ export function SessionSheet({
           Notes (optional)
           <textarea rows={3} placeholder="Conditions, sends, how it felt…" value={notes} onChange={(e) => setNotes(e.target.value)} />
         </label>
-        <button className="primary" disabled={busy} onClick={submitFeedback}>
-          Save feedback
+        <button className="primary" disabled={busy || completed === null} onClick={submitFeedback}>
+          {completed === null ? 'Completed or missed?' : 'Save feedback'}
         </button>
 
         <h3>Move session</h3>
