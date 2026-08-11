@@ -60,6 +60,9 @@ body {
   padding: 0 18px calc(28px + env(safe-area-inset-bottom));
   min-height: 100dvh;
 }
+.screen.with-nav {
+  padding-bottom: calc(96px + env(safe-area-inset-bottom));
+}
 .center {
   display: grid;
   place-items: center;
@@ -453,21 +456,47 @@ button.seg.on {
 .row.nav {
   margin-top: 26px;
 }
-.viewtoggle {
-  margin: 2px 0 18px;
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  padding: 4px;
+.bottomnav {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  max-width: 480px;
+  margin: 0 auto;
+  display: flex;
+  justify-content: space-around;
+  align-items: stretch;
+  background: rgba(14, 17, 20, 0.92);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border-top: 1px solid var(--line);
+  padding: 8px 0 calc(8px + env(safe-area-inset-bottom));
+  z-index: 6;
 }
-.viewtoggle .seg {
+.bottomnav button {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  background: none;
   border: none;
-  background: transparent;
-  padding: 8px;
+  border-radius: 0;
+  padding: 4px 0 2px;
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.12em;
 }
-.viewtoggle .seg.on {
-  background: var(--surface2);
-  color: var(--chalk);
+.bottomnav button:active {
+  transform: none;
+}
+.bottomnav button.on {
+  color: var(--mint);
+}
+.bottomnav svg {
+  width: 23px;
+  height: 23px;
 }
 
 .readiness {

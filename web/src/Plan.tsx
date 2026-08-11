@@ -146,17 +146,35 @@ export function PlanView({
           </div>
         </div>
       )}
-      <div className="row viewtoggle">
-        <button className={view === 'list' ? 'seg on' : 'seg'} onClick={() => setViewPersist('list')}>
-          List
+      <nav className="bottomnav" aria-label="Views">
+        <button className={view === 'list' ? 'on' : ''} onClick={() => setViewPersist('list')}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden>
+            <line x1="8.5" y1="6" x2="20" y2="6" />
+            <line x1="8.5" y1="12" x2="20" y2="12" />
+            <line x1="8.5" y1="18" x2="20" y2="18" />
+            <circle cx="4.5" cy="6" r="0.9" fill="currentColor" stroke="none" />
+            <circle cx="4.5" cy="12" r="0.9" fill="currentColor" stroke="none" />
+            <circle cx="4.5" cy="18" r="0.9" fill="currentColor" stroke="none" />
+          </svg>
+          LIST
         </button>
-        <button className={view === 'calendar' ? 'seg on' : 'seg'} onClick={() => setViewPersist('calendar')}>
-          Calendar
+        <button className={view === 'calendar' ? 'on' : ''} onClick={() => setViewPersist('calendar')}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden>
+            <rect x="3.5" y="5" width="17" height="15.5" rx="2.5" />
+            <line x1="3.5" y1="10" x2="20.5" y2="10" />
+            <line x1="8" y1="3" x2="8" y2="6.5" />
+            <line x1="16" y1="3" x2="16" y2="6.5" />
+          </svg>
+          CALENDAR
         </button>
-        <button className={view === 'history' ? 'seg on' : 'seg'} onClick={() => setViewPersist('history')}>
-          History
+        <button className={view === 'history' ? 'on' : ''} onClick={() => setViewPersist('history')}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden>
+            <circle cx="12" cy="12" r="8.5" />
+            <polyline points="12 7.5 12 12 15.5 14" />
+          </svg>
+          HISTORY
         </button>
-      </div>
+      </nav>
 
       {view === 'history' && <HistoryView state={state} onOpen={onOpen} />}
 

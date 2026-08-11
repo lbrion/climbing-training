@@ -64,7 +64,7 @@ export function App() {
   }
 
   return (
-    <div className="screen">
+    <div className="screen with-nav">
       <header className="topbar">
         <div>
           <h1>Climb Plan</h1>
