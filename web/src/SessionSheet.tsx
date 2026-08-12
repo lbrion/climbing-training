@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { TEMPLATES, type InjurySite, type Session, type SessionType } from '@climb/engine';
-import { api, type AppState, type ImportedActivity } from './api.js';
+import { api, type AppState, type FeedbackEvent, type ImportedActivity } from './api.js';
 import { HrChart } from './HrChart.js';
 
 const SITES: InjurySite[] = ['finger', 'wrist', 'elbow', 'shoulder', 'back', 'knee'];
@@ -9,21 +9,24 @@ const LOGGABLE_TYPES = (Object.keys(TEMPLATES) as SessionType[]).filter((t) => t
 export function SessionSheet({
   session,
   imported,
+  feedback,
   onClose,
   onUpdate,
 }: {
   session: Session;
   imported?: ImportedActivity;
+  feedback?: FeedbackEvent;
   onClose: () => void;
   onUpdate: (s: AppState) => void;
 }) {
-  const [completed, setCompleted] = useState<boolean | null>(null);
-  const [actualType, setActualType] = useState<SessionType | ''>('');
-  const [rpe, setRpe] = useState(6);
-  const [topGrade, setTopGrade] = useState<number | ''>('');
-  const [notes, setNotes] = useState('');
-  const [painSite, setPainSite] = useState<InjurySite | ''>('');
-  const [painSeverity, setPainSeverity] = useState<1 | 2 | 3>(1);
+  // When the session is already logged, open pre-filled with the logged state; saving appends a superseding event.
+  const [completed, setCompleted] = useState<boolean | null>(feedback ? feedback.completed : null);
+  const [actualType, setActualType] = useState<SessionType | ''>(feedback?.actualType ?? '');
+  const [rpe, setRpe] = useState(feedback?.rpe ?? 6);
+  const [topGrade, setTopGrade] = useState<number | ''>(feedback?.topGrade ?? '');
+  const [notes, setNotes] = useState(feedback?.notes ?? '');
+  const [painSite, setPainSite] = useState<InjurySite | ''>(feedback?.pain?.site ?? '');
+  const [painSeverity, setPainSeverity] = useState<1 | 2 | 3>(feedback?.pain?.severity ?? 1);
   const [moveTo, setMoveTo] = useState(session.date);
   const [busy, setBusy] = useState(false);
   const [showInfo, setShowInfo] = useState(false);
@@ -32,12 +35,15 @@ export function SessionSheet({
   const [dragY, setDragY] = useState(0);
 
   // Mid-session drill checklist: kept on-device until feedback is saved, then recorded on the event.
+  // Unsaved on-device checks win over the logged event (they are the newer edit).
   const doneKey = `exdone-${session.id}`;
   const [exercisesDone, setExercisesDone] = useState<number[]>(() => {
     try {
-      return (JSON.parse(localStorage.getItem(doneKey) ?? '[]') as number[]).filter((i) => i >= 0 && i < session.exercises.length);
+      const stored = localStorage.getItem(doneKey);
+      const source: number[] = stored != null ? (JSON.parse(stored) as number[]) : (feedback?.exercisesDone ?? []);
+      return source.filter((i) => i >= 0 && i < session.exercises.length);
     } catch {
-      return [];
+      return feedback?.exercisesDone ?? [];
     }
   });
   const toggleExercise = (i: number) => {
@@ -183,7 +189,8 @@ export function SessionSheet({
           </div>
         )}
 
-        <h3>Log this session</h3>
+        <h3>{feedback ? 'Your log' : 'Log this session'}</h3>
+        {feedback && <p className="hint">Logged {feedback.completed ? 'as completed' : 'as missed'} — edit anything and save to update.</p>}
         <div className="row">
           <button className={completed === true ? 'seg on' : 'seg'} onClick={() => setCompleted(true)}>
             Completed
@@ -250,7 +257,7 @@ export function SessionSheet({
           <textarea rows={3} placeholder="Conditions, sends, how it felt…" value={notes} onChange={(e) => setNotes(e.target.value)} />
         </label>
         <button className="primary" disabled={busy || completed === null} onClick={submitFeedback}>
-          {completed === null ? 'Completed or missed?' : 'Save feedback'}
+          {completed === null ? 'Completed or missed?' : feedback ? 'Update feedback' : 'Save feedback'}
         </button>
 
         <h3>Move session</h3>

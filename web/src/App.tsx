@@ -12,7 +12,7 @@ setInterval(
 );
 import type { Session } from '@climb/engine';
 import { latestImports } from '@climb/engine';
-import { api, type AppState } from './api.js';
+import { api, type AppState, type FeedbackEvent } from './api.js';
 import { Setup } from './Setup.js';
 import { Settings } from './Settings.js';
 import { PlanView } from './Plan.js';
@@ -91,6 +91,7 @@ export function App() {
               .filter((e) => e.date === open.date)
               .sort((a, b) => b.durationMin - a.durationMin)[0]
           }
+          feedback={[...(state.events ?? [])].reverse().find((e): e is FeedbackEvent => e.kind === 'feedback' && e.sessionId === open.id)}
           onClose={() => setOpen(null)}
           onUpdate={(next) => {
             setState(next);

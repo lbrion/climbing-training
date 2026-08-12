@@ -9,6 +9,7 @@ export interface AppState {
 }
 
 export type ImportedActivity = Extract<PlanEvent, { kind: 'imported-activity' }>;
+export type FeedbackEvent = Extract<PlanEvent, { kind: 'feedback' }>;
 
 export interface FitImportReport {
   skipped: boolean;
