@@ -38,15 +38,29 @@ function templateAllowed(type: SessionType, cfg: Config, eq: Equipment): boolean
 interface RecentPain {
   finger: boolean;
   upperLimb: boolean;
+  fingerUntil: string | null;
+  upperUntil: string | null;
 }
 
+/** Pain restrictions come from the LATEST feedback per session, so re-logging a session without pain clears them. */
 function recentPain(events: PlanEvent[], today: string): RecentPain {
-  const out: RecentPain = { finger: false, upperLimb: false };
+  const lastFeedback = new Map<string, Extract<PlanEvent, { kind: 'feedback' }>>();
   for (const e of events) {
-    if (e.kind !== 'feedback' || !e.pain || e.pain.severity < 2) continue;
+    if (e.kind === 'feedback') lastFeedback.set(e.sessionId, e);
+  }
+  const out: RecentPain = { finger: false, upperLimb: false, fingerUntil: null, upperUntil: null };
+  for (const e of lastFeedback.values()) {
+    if (!e.pain || e.pain.severity < 2) continue;
     if (daysBetween(e.date, today) > 14) continue;
-    if (e.pain.site === 'finger' || e.pain.site === 'wrist') out.finger = true;
-    if (e.pain.site === 'elbow' || e.pain.site === 'shoulder') out.upperLimb = true;
+    const until = addDays(e.date, 14);
+    if (e.pain.site === 'finger' || e.pain.site === 'wrist') {
+      out.finger = true;
+      if (!out.fingerUntil || until > out.fingerUntil) out.fingerUntil = until;
+    }
+    if (e.pain.site === 'elbow' || e.pain.site === 'shoulder') {
+      out.upperLimb = true;
+      if (!out.upperUntil || until > out.upperUntil) out.upperUntil = until;
+    }
   }
   return out;
 }
@@ -97,7 +111,9 @@ function weeklySessionTypes(cfg: Config, slots: number, phase: Phase, pain: Rece
     if (!templateAllowed(t, cfg, cfg.equipment)) return false;
     const tmpl = TEMPLATES[t];
     if (pain.finger && tmpl.fingerLoad) return false;
-    if (pain.upperLimb && (t === 'strength' || t === 'board-power')) return false;
+    // Elbow/shoulder pain rules out ALL high-intensity work — limit bouldering and power endurance
+    // are heavy pulling too, not acceptable substitutes for a blocked board or strength session.
+    if (pain.upperLimb && tmpl.intensity === 'high') return false;
     if (phase === 'deload' && tmpl.intensity === 'high') return false;
     const highCount = picked.filter((p) => TEMPLATES[p].intensity === 'high').length;
     if (tmpl.intensity === 'high' && highCount >= Math.min(3, Math.ceil(slots / 2))) return false;
@@ -108,8 +124,10 @@ function weeklySessionTypes(cfg: Config, slots: number, phase: Phase, pain: Rece
     return true;
   };
 
-  if (pain.finger) notices.push('Recent finger/wrist pain reported: finger-intensive sessions replaced with low-load work for 14 days.');
-  if (pain.upperLimb) notices.push('Recent elbow/shoulder pain reported: heavy pulling replaced with technique and mobility work.');
+  if (pain.finger)
+    notices.push(`Finger/wrist pain reported: finger-loading sessions replaced with low-load work until ${pain.fingerUntil}.`);
+  if (pain.upperLimb)
+    notices.push(`Elbow/shoulder pain reported: high-intensity and heavy pulling replaced with lighter work until ${pain.upperUntil}.`);
 
   push('limit-boulder');
   for (const q of weaknesses) {
@@ -138,7 +156,7 @@ function orderForSpacing(types: SessionType[]): SessionType[] {
   return out;
 }
 
-export function generatePlan(state: UserState, today: string): Plan {
+export function generatePlan(state: UserState, today: string, internal?: { skipPainDiff?: boolean }): Plan {
   const { config } = state;
   const notices: string[] = [];
   const pain = recentPain(state.events, today);
@@ -175,7 +193,8 @@ export function generatePlan(state: UserState, today: string): Plan {
       const date = addDays(weekStart, d);
       if (availability.minutesByWeekday[weekdayOf(date)] >= 30) days.push(date);
     }
-    const painActive = daysBetween(today, weekStart) <= 7 ? pain : { finger: false, upperLimb: false };
+    const painActive: RecentPain =
+      daysBetween(today, weekStart) <= 7 ? pain : { finger: false, upperLimb: false, fingerUntil: null, upperUntil: null };
     const slots = Math.min(days.length, phase === 'deload' ? Math.min(weeklyCap, 4) : weeklyCap);
     const scheduledDays = Array.from({ length: slots }, (_, i) => days[Math.floor((i * days.length) / slots)]);
     const types = orderForSpacing(
@@ -514,6 +533,23 @@ export function generatePlan(state: UserState, today: string): Plan {
     notices.push(
       'Multiple sessions missed recently — this week is unchanged, but consider updating your availability so the plan matches real life.',
     );
+  }
+
+  // Transparency: the plan is deterministic, so we can compute the counterfactual no-pain plan and
+  // tag exactly which upcoming sessions the pain restrictions changed.
+  if ((pain.finger || pain.upperLimb) && !internal?.skipPainDiff) {
+    const strippedEvents = state.events.map((e) => (e.kind === 'feedback' && e.pain ? { ...e, pain: null } : e));
+    const baseline = new Map(
+      generatePlan({ ...state, events: strippedEvents }, today, { skipPainDiff: true }).sessions.map((s) => [s.id, s]),
+    );
+    const until = [pain.fingerUntil, pain.upperUntil].filter(Boolean).sort().pop();
+    for (const s of sessions) {
+      if (daysBetween(today, s.date) < 0) continue;
+      const b = baseline.get(s.id);
+      if (b && b.type !== s.type) {
+        s.warnings.push(`Swapped from ${TEMPLATES[b.type].title} — pain restrictions until ${until}.`);
+      }
+    }
   }
 
   const visible = sessions

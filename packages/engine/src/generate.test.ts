@@ -420,6 +420,38 @@ describe('generatePlan', () => {
     expect(metrics.prDate).toBe('2026-08-05');
   });
 
+  it('elbow pain blocks all high-intensity work, and swapped sessions say what they replaced', () => {
+    const plan0 = generatePlan(base, '2026-08-03');
+    const done = plan0.sessions.find((s) => s.date === '2026-08-03')!;
+    const hurt: UserState = {
+      ...base,
+      events: [{ kind: 'feedback', sessionId: done.id, date: '2026-08-03', completed: true, rpe: 7, pain: { site: 'elbow', severity: 2 } }],
+    };
+    const plan = generatePlan(hurt, '2026-08-04');
+    const upcoming = plan.sessions.filter((s) => s.date >= '2026-08-04' && s.date <= '2026-08-11');
+    for (const s of upcoming) expect(TEMPLATES[s.type].intensity).not.toBe('high');
+    expect(plan.notices.join(' ')).toContain('until 2026-08-17');
+    expect(upcoming.some((s) => s.warnings.some((w) => w.includes('Swapped from')))).toBe(true);
+  });
+
+  it('re-logging a session without pain clears the restrictions entirely', () => {
+    const plan0 = generatePlan(base, '2026-08-03');
+    const done = plan0.sessions.find((s) => s.date === '2026-08-03')!;
+    const withPain: UserState['events'][number] = {
+      kind: 'feedback',
+      sessionId: done.id,
+      date: '2026-08-03',
+      completed: true,
+      rpe: 7,
+      pain: { site: 'elbow', severity: 2 },
+    };
+    const cleared: UserState['events'][number] = { ...withPain, pain: null };
+    const plan = generatePlan({ ...base, events: [withPain, cleared] }, '2026-08-04');
+    const reference = generatePlan({ ...base, events: [cleared] }, '2026-08-04');
+    expect(plan.sessions.map((s) => [s.id, s.type])).toEqual(reference.sessions.map((s) => [s.id, s.type]));
+    expect(plan.notices.join(' ')).not.toMatch(/pain/i);
+  });
+
   it('supersedes an imported activity when a reprocessed event shares its externalId', () => {
     const first = {
       kind: 'imported-activity' as const,

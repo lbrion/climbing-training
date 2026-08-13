@@ -111,6 +111,11 @@ export function SessionSheet({
         </div>
         <p className="focus">{session.focus}</p>
         {showInfo && <p className="overview">{TEMPLATES[session.type].overview}</p>}
+        {session.warnings.map((w, i) => (
+          <div key={i} className="warn">
+            {w}
+          </div>
+        ))}
         {session.hints.map((h, i) => (
           <div key={i} className="hint-line">
             {h}
