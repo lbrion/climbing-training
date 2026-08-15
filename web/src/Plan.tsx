@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { Session } from '@climb/engine';
+import { TEMPLATES, type Session, type SessionType } from '@climb/engine';
 import { api, type AppState } from './api.js';
 import { HistoryView } from './History.js';
 
@@ -71,13 +71,43 @@ function SessionCard({
   );
 }
 
-function RestCard() {
+function RestCard({ date, onAdd }: { date: string; onAdd: (date: string, type: SessionType) => Promise<void> }) {
+  const [picking, setPicking] = useState(false);
+  const [busy, setBusy] = useState(false);
   return (
     <div className="card rest">
       <div className="card-top">
         <span className="title">Rest day</span>
       </div>
       <div className="card-sub">Recovery. Optional walk or light stretching.</div>
+      {!picking ? (
+        <button className="quick-miss" onClick={() => setPicking(true)}>
+          ＋ Log a session anyway
+        </button>
+      ) : (
+        <select
+          autoFocus
+          disabled={busy}
+          defaultValue=""
+          onChange={async (e) => {
+            const type = e.target.value as SessionType;
+            if (!type) return;
+            setBusy(true);
+            await onAdd(date, type);
+          }}
+        >
+          <option value="" disabled>
+            What did you do?
+          </option>
+          {(Object.keys(TEMPLATES) as SessionType[])
+            .filter((t) => t !== 'rest')
+            .map((t) => (
+              <option key={t} value={t}>
+                {TEMPLATES[t].title}
+              </option>
+            ))}
+        </select>
+      )}
     </div>
   );
 }
@@ -97,6 +127,12 @@ export function PlanView({
   };
   const logReadiness = async (level: 1 | 2 | 3) => {
     onUpdate(await api.event({ kind: 'readiness', date: plan.generatedFor, level }));
+  };
+  const addSession = async (date: string, type: SessionType) => {
+    const next = await api.event({ kind: 'adhoc-session', date, type });
+    onUpdate(next);
+    const created = next.plan?.sessions.filter((s) => s.id.startsWith(`adhoc-${date}`)).pop();
+    if (created && date <= (next.plan?.generatedFor ?? date)) onOpen(created);
   };
   const today = plan.generatedFor;
   const [view, setView] = useState<View>(() => (localStorage.getItem('planView') as View) ?? 'list');
@@ -200,7 +236,7 @@ export function PlanView({
                 <div className="day-body">
                   <h2 className={date === today ? 'today' : ''}>{date === today ? `Today · ${fmtDay(date)}` : fmtDay(date)}</h2>
                   {daySessions.length === 0 ? (
-                    <RestCard />
+                    <RestCard date={date} onAdd={addSession} />
                   ) : (
                     daySessions.map((s) => (
                       <SessionCard key={s.id} s={s} done={doneById.get(s.id) ?? null} onOpen={onOpen} onMiss={quickMiss} />
@@ -247,7 +283,7 @@ export function PlanView({
           <section>
             <h2 className={selected === today ? 'today' : ''}>{selected === today ? `Today · ${fmtDay(selected)}` : fmtDay(selected)}</h2>
             {byDate.get(selected)!.length === 0 ? (
-              <RestCard />
+              <RestCard date={selected} onAdd={addSession} />
             ) : (
               byDate
                 .get(selected)!

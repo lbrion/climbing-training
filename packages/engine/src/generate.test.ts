@@ -420,6 +420,28 @@ describe('generatePlan', () => {
     expect(metrics.prDate).toBe('2026-08-05');
   });
 
+  it('materializes an adhoc session on a rest day and counts it toward the weekly cap', () => {
+    // 2026-08-04 is a Tuesday with 0 availability. Cap is 4; the adhoc fifth session drops a future filler.
+    const plan = generatePlan({ ...base, events: [{ kind: 'adhoc-session', date: '2026-08-04', type: 'volume-boulder' }] }, '2026-08-03');
+    const adhoc = plan.sessions.find((s) => s.id.startsWith('adhoc-2026-08-04'));
+    expect(adhoc).toBeDefined();
+    expect(adhoc!.type).toBe('volume-boulder');
+    const week1 = plan.sessions.filter((s) => s.date >= '2026-08-03' && s.date < '2026-08-10');
+    expect(week1.length).toBe(4);
+    expect(plan.notices.join(' ')).toMatch(/removed to keep the week/);
+  });
+
+  it('an adhoc hard finger session pushes upcoming hard finger work apart', () => {
+    const plan = generatePlan({ ...base, events: [{ kind: 'adhoc-session', date: '2026-08-06', type: 'limit-boulder' }] }, '2026-08-03');
+    for (const s of plan.sessions) {
+      if (s.id.startsWith('adhoc-')) continue;
+      const d = daysBetween('2026-08-06', s.date);
+      if (d >= 0 && d < 2) {
+        expect(TEMPLATES[s.type].fingerLoad && TEMPLATES[s.type].intensity === 'high').toBe(false);
+      }
+    }
+  });
+
   it('elbow pain blocks all high-intensity work, and swapped sessions say what they replaced', () => {
     const plan0 = generatePlan(base, '2026-08-03');
     const done = plan0.sessions.find((s) => s.date === '2026-08-03')!;

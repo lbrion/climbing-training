@@ -127,6 +127,24 @@ const eventSchema = z.discriminatedUnion('kind', [
     avgHrClimb: z.number().min(20).max(250).nullable().optional(),
     avgHrRest: z.number().min(20).max(250).nullable().optional(),
   }),
+  z.object({
+    kind: z.literal('adhoc-session'),
+    date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    type: z.enum([
+      'limit-boulder',
+      'flash-boulder',
+      'volume-boulder',
+      'technique',
+      'board-power',
+      'hangboard-max',
+      'hangboard-subhang',
+      'strength',
+      'power-endurance',
+      'aerobic-capacity',
+      'mobility-prehab',
+    ]),
+    durationMin: z.number().min(5).max(600).optional(),
+  }),
 ]);
 
 const configSchema = z.object({

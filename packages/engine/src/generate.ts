@@ -180,8 +180,13 @@ export function generatePlan(state: UserState, today: string, internal?: { skipP
   const start = config.planStart;
   const endDay = daysBetween(start, today) + HORIZON_DAYS;
   const sessions: Session[] = [];
-  const lastHardFingerByDate: string[] = [];
-  if (cfg.assessment.lastHardSessionDate) lastHardFingerByDate.push(cfg.assessment.lastHardSessionDate);
+  const adhocEvents = state.events.filter((e): e is Extract<PlanEvent, { kind: 'adhoc-session' }> => e.kind === 'adhoc-session');
+  // Anchors for the hard-finger spacing rule: prior sessions plus any unplanned hard finger work the user logged.
+  const hardFingerAnchors: string[] = [];
+  if (cfg.assessment.lastHardSessionDate) hardFingerAnchors.push(cfg.assessment.lastHardSessionDate);
+  for (const e of adhocEvents) {
+    if (TEMPLATES[e.type].fingerLoad && TEMPLATES[e.type].intensity === 'high') hardFingerAnchors.push(e.date);
+  }
 
   const weeklyCap = Math.max(2, Math.min(6, cfg.assessment.weeklySessionsHistorical + 1 + learned.capDelta));
   const totalWeeks = Math.ceil(endDay / 7) + 1;
@@ -208,12 +213,15 @@ export function generatePlan(state: UserState, today: string, internal?: { skipP
       const warnings: string[] = [];
       let effectiveType = type;
       if (tmpl.fingerLoad && tmpl.intensity === 'high') {
-        const last = lastHardFingerByDate[lastHardFingerByDate.length - 1];
-        if (last && daysBetween(last, date) < fingerGap) {
+        const tooClose = hardFingerAnchors.some((a) => {
+          const d = daysBetween(a, date);
+          return d >= 0 && d < fingerGap;
+        });
+        if (tooClose) {
           effectiveType = 'technique';
           warnings.push('Swapped to technique: hard finger sessions need 48h apart.');
         } else {
-          lastHardFingerByDate.push(date);
+          hardFingerAnchors.push(date);
         }
       }
       const t = TEMPLATES[effectiveType];
@@ -232,6 +240,28 @@ export function generatePlan(state: UserState, today: string, internal?: { skipP
         warnings,
         hints: [],
       });
+    });
+  }
+
+  // Materialize unplanned sessions as real plan sessions (feedback, drills, and load attach to them normally).
+  const perDate = new Map<string, number>();
+  for (const e of adhocEvents) {
+    const idx = perDate.get(e.date) ?? 0;
+    perDate.set(e.date, idx + 1);
+    const week = Math.max(0, Math.floor(daysBetween(start, e.date) / 7));
+    const t = TEMPLATES[e.type];
+    sessions.push({
+      id: `adhoc-${e.date}-${idx}`,
+      date: e.date,
+      type: e.type,
+      title: t.title,
+      intensity: t.intensity,
+      durationMin: e.durationMin ?? t.baseDurationMin,
+      focus: t.focus,
+      exercises: t.exercises(phaseForWeek(week), cfg.assessment.maxBoulderGrade),
+      weekPhase: phaseForWeek(week),
+      warnings: ['Added by you on a rest day.'],
+      hints: [],
     });
   }
 
@@ -261,6 +291,35 @@ export function generatePlan(state: UserState, today: string, internal?: { skipP
   for (const e of state.events) {
     if (e.kind === 'feedback') lastFeedback.set(e.sessionId, { completed: e.completed, date: e.date, actualType: e.actualType });
   }
+  // Recalculate around unplanned sessions: keep neighboring hard days honest and the week within its cap.
+  for (const a of sessions.filter((s) => s.id.startsWith('adhoc-'))) {
+    if (a.intensity === 'high') {
+      for (const s of sessions) {
+        if (s.id.startsWith('adhoc-') || lastFeedback.has(s.id)) continue;
+        if (daysBetween(today, s.date) < 0 || s.intensity !== 'high') continue;
+        if (Math.abs(daysBetween(a.date, s.date)) === 1) {
+          s.intensity = 'medium';
+          s.warnings.push(`Unplanned hard session on ${a.date} next door — keep this one sub-maximal.`);
+        }
+      }
+    }
+    const week = Math.floor(daysBetween(start, a.date) / 7);
+    const weekSessions = sessions.filter((s) => Math.floor(daysBetween(start, s.date) / 7) === week);
+    if (weekSessions.length > weeklyCap) {
+      const drop = weekSessions
+        .filter((s) => !s.id.startsWith('adhoc-') && daysBetween(today, s.date) > 0 && !lastFeedback.has(s.id) && s.intensity !== 'high')
+        .sort((x, y) => x.date.localeCompare(y.date))
+        .pop();
+      if (drop) {
+        sessions.splice(sessions.indexOf(drop), 1);
+        byId.delete(drop.id);
+        notices.push(
+          `You added a session on ${a.date}: ${drop.title} on ${drop.date} was removed to keep the week at ${weeklyCap} sessions.`,
+        );
+      }
+    }
+  }
+
   const consumed = new Set<string>();
 
   const scheduleHealthy = (extraDate?: string): boolean => {

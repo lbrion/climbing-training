@@ -103,6 +103,13 @@ export type PlanEvent =
   | { kind: 'availability'; date: string; availability: Availability }
   | { kind: 'goal'; date: string; goal: Goal }
   | {
+      /** A session the user did (or plans to do) on a day with nothing scheduled; the plan recalculates around it. */
+      kind: 'adhoc-session';
+      date: string;
+      type: SessionType;
+      durationMin?: number;
+    }
+  | {
       /** A workout imported from a watch/FIT file (e.g. COROS, Garmin). Objective record alongside subjective feedback. */
       kind: 'imported-activity';
       date: string;
