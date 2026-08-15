@@ -300,7 +300,13 @@ export function PlanView({
                     {sessions.length === 0 ? (
                       <span className="cal-rest">{dim ? '' : 'rest'}</span>
                     ) : (
-                      sessions.map((s) => <span key={s.id} className={`dot intensity-${s.intensity}`} />)
+                      sessions.map((s) =>
+                        doneById.get(s.id) === false ? (
+                          <span key={s.id} className="dot missed" title="Missed" />
+                        ) : (
+                          <span key={s.id} className={`dot intensity-${s.intensity}`} />
+                        ),
+                      )
                     )}
                   </span>
                 </button>

@@ -702,6 +702,10 @@ legend {
 .dot.intensity-medium {
   background: var(--ochre);
 }
+.dot.missed {
+  background: transparent;
+  border: 1.5px solid var(--line);
+}
 
 .stats {
   display: grid;
