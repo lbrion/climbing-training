@@ -167,11 +167,6 @@ export function PlanView({
 
   return (
     <main className="plan">
-      {plan.notices.map((n, i) => (
-        <div key={i} className="notice">
-          {n}
-        </div>
-      ))}
       {plan.loadStatus.ratio !== null && (
         <div className="load">
           Weekly load ratio {plan.loadStatus.ratio.toFixed(2)} {plan.loadStatus.capped ? '(capped)' : ''}

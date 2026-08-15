@@ -437,6 +437,65 @@ button.ghost {
   width: auto;
   font-size: 14px;
 }
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.icon-btn {
+  position: relative;
+  width: auto;
+  padding: 4px 6px;
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  display: grid;
+  place-items: center;
+}
+.icon-btn svg {
+  width: 22px;
+  height: 22px;
+  display: block;
+}
+.icon-btn .badge {
+  position: absolute;
+  top: -1px;
+  right: -2px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--ember);
+  color: #fff;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 16px;
+  text-align: center;
+}
+.notice-panel {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  width: min(340px, calc(100vw - 36px));
+  max-height: 60vh;
+  overflow-y: auto;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 12px;
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.5);
+  z-index: 20;
+}
+.notice-panel .notice {
+  margin-bottom: 8px;
+}
+.notice-panel .notice:last-child {
+  margin-bottom: 0;
+}
+.notice-panel .hint {
+  margin: 4px 2px;
+}
 button.seg {
   flex: 1;
   font-weight: 500;

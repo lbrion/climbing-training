@@ -23,6 +23,7 @@ export function App() {
   const [error, setError] = useState<string | null>(null);
   const [open, setOpen] = useState<Session | null>(null);
   const [overlay, setOverlay] = useState<'none' | 'settings' | 'assessment'>('none');
+  const [showNotices, setShowNotices] = useState(false);
 
   useEffect(() => {
     api
@@ -63,6 +64,8 @@ export function App() {
     );
   }
 
+  const notices = state.plan?.notices ?? [];
+
   return (
     <div className="screen with-nav">
       <header className="topbar">
@@ -77,9 +80,43 @@ export function App() {
             </span>
           )}
         </div>
-        <button className="ghost" onClick={() => setOverlay('settings')}>
-          Settings
-        </button>
+        <div className="topbar-actions">
+          <button
+            className="icon-btn"
+            aria-label={`Notifications${notices.length ? ` (${notices.length})` : ''}`}
+            onClick={() => setShowNotices((v) => !v)}
+          >
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden
+            >
+              <path d="M6 9a6 6 0 0 1 12 0c0 5 2 6 2 6H4s2-1 2-6" />
+              <path d="M10 20a2 2 0 0 0 4 0" />
+            </svg>
+            {notices.length > 0 && <span className="badge">{notices.length}</span>}
+          </button>
+          <button className="ghost" onClick={() => setOverlay('settings')}>
+            Settings
+          </button>
+        </div>
+        {showNotices && (
+          <div className="notice-panel">
+            {notices.length === 0 ? (
+              <p className="hint">You're all caught up — no plan notices right now.</p>
+            ) : (
+              notices.map((n, i) => (
+                <div key={i} className="notice">
+                  {n}
+                </div>
+              ))
+            )}
+          </div>
+        )}
       </header>
       <PlanView state={state} onOpen={setOpen} onUpdate={setState} />
       <footer className="buildid">build {__BUILD_ID__}</footer>
