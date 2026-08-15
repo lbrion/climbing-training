@@ -619,6 +619,23 @@ legend {
   margin: 18px 0 4px;
 }
 
+.cal-nav {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.cal-nav h2 {
+  margin: 0;
+}
+.cal-nav .ghost {
+  padding: 6px 16px;
+  font-size: 17px;
+  line-height: 1;
+}
+.cal-cell.dim {
+  opacity: 0.4;
+}
 .cal {
   display: grid;
   grid-template-columns: repeat(7, 1fr);

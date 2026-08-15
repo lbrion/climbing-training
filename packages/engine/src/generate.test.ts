@@ -431,6 +431,11 @@ describe('generatePlan', () => {
     expect(plan.notices.join(' ')).toMatch(/removed to keep the week/);
   });
 
+  it('keeps retro-logged adhoc sessions visible outside the 28-day window', () => {
+    const plan = generatePlan({ ...base, events: [{ kind: 'adhoc-session', date: '2026-06-05', type: 'volume-boulder' }] }, '2026-09-20');
+    expect(plan.sessions.some((s) => s.id.startsWith('adhoc-2026-06-05'))).toBe(true);
+  });
+
   it('an adhoc hard finger session pushes upcoming hard finger work apart', () => {
     const plan = generatePlan({ ...base, events: [{ kind: 'adhoc-session', date: '2026-08-06', type: 'limit-boulder' }] }, '2026-08-03');
     for (const s of plan.sessions) {

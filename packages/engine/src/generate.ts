@@ -611,8 +611,9 @@ export function generatePlan(state: UserState, today: string, internal?: { skipP
     }
   }
 
+  // Adhoc sessions are always visible regardless of the window — retro-logged sessions may be months back.
   const visible = sessions
-    .filter((s) => daysBetween(today, s.date) >= -28 && daysBetween(today, s.date) < HORIZON_DAYS)
+    .filter((s) => (daysBetween(today, s.date) >= -28 && daysBetween(today, s.date) < HORIZON_DAYS) || s.id.startsWith('adhoc-'))
     .sort((a, b) => a.date.localeCompare(b.date));
 
   return {

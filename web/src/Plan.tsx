@@ -71,18 +71,18 @@ function SessionCard({
   );
 }
 
-function RestCard({ date, onAdd }: { date: string; onAdd: (date: string, type: SessionType) => Promise<void> }) {
+function RestCard({ date, onAdd, past }: { date: string; onAdd: (date: string, type: SessionType) => Promise<void>; past?: boolean }) {
   const [picking, setPicking] = useState(false);
   const [busy, setBusy] = useState(false);
   return (
     <div className="card rest">
       <div className="card-top">
-        <span className="title">Rest day</span>
+        <span className="title">{past ? 'Nothing logged' : 'Rest day'}</span>
       </div>
-      <div className="card-sub">Recovery. Optional walk or light stretching.</div>
+      <div className="card-sub">{past ? 'No session was planned or logged this day.' : 'Recovery. Optional walk or light stretching.'}</div>
       {!picking ? (
         <button className="quick-miss" onClick={() => setPicking(true)}>
-          ＋ Log a session anyway
+          {past ? '＋ Add a session you did' : '＋ Log a session anyway'}
         </button>
       ) : (
         <select
@@ -137,6 +137,7 @@ export function PlanView({
   const today = plan.generatedFor;
   const [view, setView] = useState<View>(() => (localStorage.getItem('planView') as View) ?? 'list');
   const [selected, setSelected] = useState(today);
+  const [month, setMonth] = useState(today.slice(0, 7));
 
   const setViewPersist = (v: View) => {
     setView(v);
@@ -147,6 +148,22 @@ export function PlanView({
   const days = Array.from({ length: 14 }, (_, i) => addDays(today, i));
   const byDate = new Map<string, Session[]>(days.map((d) => [d, []]));
   for (const s of plan.sessions) byDate.get(s.date)?.push(s);
+  const sessionsOn = (d: string) => plan.sessions.filter((s) => s.date === d);
+  // The engine plans/backfills a ±28-day window around today; outside it, days have no plan data.
+  const inPlanWindow = (d: string) => {
+    const diff = Math.round((Date.parse(d) - Date.parse(today)) / DAY_MS);
+    return diff >= -28 && diff < 28;
+  };
+
+  const monthDays = Array.from(
+    { length: new Date(Date.UTC(+month.slice(0, 4), +month.slice(5, 7), 0)).getUTCDate() },
+    (_, i) => `${month}-${String(i + 1).padStart(2, '0')}`,
+  );
+  const monthLabel = new Date(month + '-01T00:00:00').toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+  const shiftMonth = (delta: number) => {
+    const d = new Date(Date.UTC(+month.slice(0, 4), +month.slice(5, 7) - 1 + delta, 1));
+    setMonth(d.toISOString().slice(0, 7));
+  };
 
   return (
     <main className="plan">
@@ -251,27 +268,37 @@ export function PlanView({
 
       {view === 'calendar' && (
         <>
+          <div className="cal-nav">
+            <button className="ghost" onClick={() => shiftMonth(-1)} aria-label="Previous month">
+              ‹
+            </button>
+            <h2>{monthLabel}</h2>
+            <button className="ghost" onClick={() => shiftMonth(1)} aria-label="Next month">
+              ›
+            </button>
+          </div>
           <div className="cal">
             {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, i) => (
               <div key={i} className="cal-head">
                 {d}
               </div>
             ))}
-            {Array.from({ length: weekdayMon0(days[0]) }, (_, i) => (
+            {Array.from({ length: weekdayMon0(monthDays[0]) }, (_, i) => (
               <div key={`pad-${i}`} className="cal-cell pad" />
             ))}
-            {days.map((date) => {
-              const sessions = byDate.get(date)!;
+            {monthDays.map((date) => {
+              const sessions = sessionsOn(date);
+              const dim = !inPlanWindow(date) && sessions.length === 0;
               return (
                 <button
                   key={date}
-                  className={`cal-cell${date === selected ? ' sel' : ''}${date === today ? ' now' : ''}`}
+                  className={`cal-cell${date === selected ? ' sel' : ''}${date === today ? ' now' : ''}${dim ? ' dim' : ''}`}
                   onClick={() => setSelected(date)}
                 >
                   <span className="cal-num">{Number(date.slice(8))}</span>
                   <span className="cal-dots">
                     {sessions.length === 0 ? (
-                      <span className="cal-rest">rest</span>
+                      <span className="cal-rest">{dim ? '' : 'rest'}</span>
                     ) : (
                       sessions.map((s) => <span key={s.id} className={`dot intensity-${s.intensity}`} />)
                     )}
@@ -282,12 +309,12 @@ export function PlanView({
           </div>
           <section>
             <h2 className={selected === today ? 'today' : ''}>{selected === today ? `Today · ${fmtDay(selected)}` : fmtDay(selected)}</h2>
-            {byDate.get(selected)!.length === 0 ? (
-              <RestCard date={selected} onAdd={addSession} />
+            {sessionsOn(selected).length === 0 ? (
+              <RestCard date={selected} onAdd={addSession} past={selected < today} />
             ) : (
-              byDate
-                .get(selected)!
-                .map((s) => <SessionCard key={s.id} s={s} done={doneById.get(s.id) ?? null} onOpen={onOpen} onMiss={quickMiss} />)
+              sessionsOn(selected).map((s) => (
+                <SessionCard key={s.id} s={s} done={doneById.get(s.id) ?? null} onOpen={onOpen} onMiss={quickMiss} />
+              ))
             )}
           </section>
         </>
