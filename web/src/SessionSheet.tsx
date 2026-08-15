@@ -52,6 +52,9 @@ export function SessionSheet({
     localStorage.setItem(doneKey, JSON.stringify(next));
   };
 
+  // Adhoc sessions were added by the user, not scheduled, so there is no "planned" session to deviate from.
+  const isAdhoc = session.id.startsWith('adhoc-');
+
   const onTouchStart = (e: React.TouchEvent) => {
     startY.current = sheetRef.current && sheetRef.current.scrollTop <= 0 ? e.touches[0].clientY : null;
   };
@@ -206,9 +209,9 @@ export function SessionSheet({
         </div>
         {completed && (
           <label>
-            What did you actually do?
+            {isAdhoc ? 'Session type' : 'What did you actually do?'}
             <select value={actualType} onChange={(e) => setActualType(e.target.value as SessionType | '')}>
-              <option value="">As planned — {session.title}</option>
+              <option value="">{isAdhoc ? session.title : `As planned — ${session.title}`}</option>
               {LOGGABLE_TYPES.filter((t) => t !== session.type).map((t) => (
                 <option key={t} value={t}>
                   {TEMPLATES[t].title}
