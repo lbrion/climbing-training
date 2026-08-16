@@ -64,7 +64,7 @@ export function learnProfile(events: PlanEvent[], today: string, netMisses: numb
     rationale.push('You trained several days fewer than planned over the last 3 weeks: weekly session count reduced by one.');
   } else if (rpes.length >= 6 && netMisses === 0 && meanRpe !== null && meanRpe <= loThreshold && !anyFingerPain && heavyCount14 === 0) {
     capDelta = 1;
-    rationale.push('Three weeks of full completion at comfortable effort: weekly session count increased by one.');
+    rationale.push('You have hit your weekly target at comfortable effort with no shortfall: weekly session count increased by one.');
   }
 
   return { fingerGapDays, capDelta, todayReadiness, baselineRpe, rationale };

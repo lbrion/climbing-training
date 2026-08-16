@@ -98,11 +98,15 @@ export function trainedDates(events: PlanEvent[]): Set<string> {
 }
 
 /**
- * Training adherence over the fully-elapsed weeks inside `windowDays`. Instead of counting which planned cards got
+ * Training adherence over the most recent `weeks` fully-elapsed weeks. Instead of counting which planned cards got
  * a checkmark, it compares the number of days you INTENDED to train each week (available days, capped at the weekly
  * target) against the number of days you ACTUALLY trained — where "trained" credits any completed, substituted,
  * moved, adhoc, or imported session. So swapping a session to another day, or changing its type, never reads as a
  * miss; only a genuine weekly shortfall does. The current partial week is not judged yet.
+ *
+ * Two invariants hold: absence of a log is never a miss (only weeks you engaged with are judged, and a week's
+ * shortfall is capped at the number of sessions you EXPLICITLY marked missed — so an unlogged-but-trained day is
+ * never charged), and the window is a fixed count of whole weeks so thresholds don't drift with the day of week.
  */
 export function weeklyAdherence(
   events: PlanEvent[],
@@ -110,12 +114,9 @@ export function weeklyAdherence(
   planStart: string,
   today: string,
   weeklyTargetBase: number,
-  windowDays: number,
+  weeks: number,
 ): Adherence {
   const trained = trainedDates(events);
-  // Absence of a log is never a miss: only weeks the user engaged with are judged, and a shortfall is
-  // only charged when there is an EXPLICIT missed session that week — then day-swaps/substitutions/adhoc
-  // that raised the trained-day count cancel it out.
   const lastFeedback = new Map<string, Extract<PlanEvent, { kind: 'feedback' }>>();
   for (const e of events) if (e.kind === 'feedback') lastFeedback.set(e.sessionId, e);
   const feedbackDates = new Set<string>();
@@ -130,25 +131,25 @@ export function weeklyAdherence(
     return n;
   };
   let plannedDays = 0;
+  let completedDays = 0;
   let netMisses = 0;
-  const firstW = Math.floor(daysBetween(planStart, addDays(today, -windowDays)) / 7);
-  const lastW = Math.floor(daysBetween(planStart, addDays(today, -1)) / 7);
-  for (let w = firstW; w <= lastW; w++) {
-    if (w < 0) continue;
+  const lastElapsed = Math.floor(daysBetween(planStart, today) / 7) - 1;
+  for (let w = Math.max(0, lastElapsed - weeks + 1); w <= lastElapsed; w++) {
     const weekStart = addDays(planStart, w * 7);
-    if (daysBetween(weekStart, today) < 7) continue; // only fully-elapsed weeks are judged
-    if (daysBetween(weekStart, today) > windowDays) continue;
     const weekDates = Array.from({ length: 7 }, (_, d) => addDays(weekStart, d));
     const engaged = weekDates.some((d) => trained.has(d) || feedbackDates.has(d));
     if (!engaged) continue; // didn't log or train at all that week → not judged (silence ≠ a miss)
     const cap = phaseForWeek(w) === 'deload' ? Math.min(weeklyTargetBase, 4) : weeklyTargetBase;
     const target = Math.min(availDaysInWeek(weekStart), cap);
     const trainedThisWeek = weekDates.filter((d) => trained.has(d)).length;
-    const explicitMiss = weekDates.some((d) => missDates.has(d));
+    const explicitMissCount = weekDates.filter((d) => missDates.has(d)).length;
     plannedDays += target;
-    netMisses += explicitMiss ? Math.max(0, target - trainedThisWeek) : 0;
+    completedDays += Math.min(trainedThisWeek, target);
+    // Charge at most one miss per session you actually marked missed, so an unlogged-but-trained day is
+    // never swept in just because the week also had an explicit miss.
+    netMisses += Math.min(explicitMissCount, Math.max(0, target - trainedThisWeek));
   }
-  return { plannedDays, completedDays: plannedDays - netMisses, netMisses };
+  return { plannedDays, completedDays, netMisses };
 }
 
 /** Actual trained minutes per date from watch imports; the longest activity wins when a date has several. */
@@ -249,10 +250,10 @@ export function generatePlan(state: UserState, today: string, internal?: { skipP
   // Adherence-based miss accounting: intended vs actually-trained days per week, so day-swaps and
   // type-changes don't register as misses. Measured against the unpenalized base target.
   const targetBase = Math.max(2, Math.min(6, cfg.assessment.weeklySessionsHistorical + 1));
-  const adherence = weeklyAdherence(state.events, availability, config.planStart, today, targetBase, 28);
-  const netMisses21 = weeklyAdherence(state.events, availability, config.planStart, today, targetBase, 21).netMisses;
+  const adherence = weeklyAdherence(state.events, availability, config.planStart, today, targetBase, 4);
+  const netMisses3wk = weeklyAdherence(state.events, availability, config.planStart, today, targetBase, 3).netMisses;
 
-  const learned = learnProfile(state.events, today, netMisses21);
+  const learned = learnProfile(state.events, today, netMisses3wk);
   notices.push(...learned.rationale);
   const priorFingerInjury = config.assessment.injuryHistory.includes('finger') || config.assessment.injuryHistory.includes('wrist');
   const fingerGap = priorFingerInjury ? 3 : learned.fingerGapDays;
@@ -671,7 +672,7 @@ export function generatePlan(state: UserState, today: string, internal?: { skipP
   }
 
   // Only flag a real training shortfall (days short of intent, crediting swaps/substitutions/adhoc), not raw misses.
-  const recentShortfall = weeklyAdherence(state.events, availability, config.planStart, today, targetBase, 14).netMisses;
+  const recentShortfall = weeklyAdherence(state.events, availability, config.planStart, today, targetBase, 2).netMisses;
   if (recentShortfall >= 2) {
     notices.push(
       'You trained fewer days than planned over the last couple of weeks — moving or swapping sessions is fine, but if this is the new normal, update your availability so the plan matches real life.',

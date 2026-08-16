@@ -439,6 +439,18 @@ describe('generatePlan', () => {
     expect(madeUp.adherence.netMisses).toBe(0);
   });
 
+  it('caps a week shortfall at the number of explicitly missed sessions (unlogged days are not misses)', () => {
+    const plan0 = generatePlan(base, '2026-08-10');
+    const wk0 = plan0.sessions.filter((s) => s.date >= '2026-08-03' && s.date < '2026-08-10');
+    // Complete one, explicitly miss one, leave the other two unlogged (trained-but-unlogged, or just silent).
+    const events: UserState['events'] = [
+      { kind: 'feedback', sessionId: wk0[0].id, date: wk0[0].date, completed: true, rpe: 6, pain: null },
+      { kind: 'feedback', sessionId: wk0[1].id, date: wk0[1].date, completed: false, rpe: null, pain: null },
+    ];
+    // Only the one explicit miss is charged — the two unlogged days are not swept in.
+    expect(generatePlan({ ...base, events }, '2026-08-10').adherence.netMisses).toBe(1);
+  });
+
   it('never counts silent non-logging as a miss', () => {
     // A brand-new user with weeks of no logs has zero shortfall (and no cap penalty).
     const plan = generatePlan(base, '2026-09-20');
