@@ -1,7 +1,19 @@
 import { QUALITY_SESSIONS, rankWeaknesses } from './assessment.js';
 import { learnProfile } from './learn.js';
 import { TEMPLATES, type Template } from './templates.js';
-import type { Config, Equipment, LoadStatus, Phase, Plan, PlanEvent, Session, SessionType, UserState } from './types.js';
+import type {
+  Adherence,
+  Availability,
+  Config,
+  Equipment,
+  LoadStatus,
+  Phase,
+  Plan,
+  PlanEvent,
+  Session,
+  SessionType,
+  UserState,
+} from './types.js';
 
 const DAY_MS = 86_400_000;
 const HORIZON_DAYS = 28;
@@ -72,6 +84,71 @@ export function latestImports(events: PlanEvent[]): Extract<PlanEvent, { kind: '
     if (e.kind === 'imported-activity') byId.set(e.externalId, e);
   }
   return [...byId.values()];
+}
+
+/** Dates the user actually trained: any completed session, an adhoc session, or an imported activity. */
+export function trainedDates(events: PlanEvent[]): Set<string> {
+  const last = new Map<string, Extract<PlanEvent, { kind: 'feedback' }>>();
+  for (const e of events) if (e.kind === 'feedback') last.set(e.sessionId, e);
+  const out = new Set<string>();
+  for (const fb of last.values()) if (fb.completed) out.add(fb.date);
+  for (const e of events) if (e.kind === 'adhoc-session') out.add(e.date);
+  for (const e of latestImports(events)) out.add(e.date);
+  return out;
+}
+
+/**
+ * Training adherence over the fully-elapsed weeks inside `windowDays`. Instead of counting which planned cards got
+ * a checkmark, it compares the number of days you INTENDED to train each week (available days, capped at the weekly
+ * target) against the number of days you ACTUALLY trained — where "trained" credits any completed, substituted,
+ * moved, adhoc, or imported session. So swapping a session to another day, or changing its type, never reads as a
+ * miss; only a genuine weekly shortfall does. The current partial week is not judged yet.
+ */
+export function weeklyAdherence(
+  events: PlanEvent[],
+  availability: Availability,
+  planStart: string,
+  today: string,
+  weeklyTargetBase: number,
+  windowDays: number,
+): Adherence {
+  const trained = trainedDates(events);
+  // Absence of a log is never a miss: only weeks the user engaged with are judged, and a shortfall is
+  // only charged when there is an EXPLICIT missed session that week — then day-swaps/substitutions/adhoc
+  // that raised the trained-day count cancel it out.
+  const lastFeedback = new Map<string, Extract<PlanEvent, { kind: 'feedback' }>>();
+  for (const e of events) if (e.kind === 'feedback') lastFeedback.set(e.sessionId, e);
+  const feedbackDates = new Set<string>();
+  const missDates = new Set<string>();
+  for (const fb of lastFeedback.values()) {
+    feedbackDates.add(fb.date);
+    if (!fb.completed) missDates.add(fb.date);
+  }
+  const availDaysInWeek = (weekStart: string): number => {
+    let n = 0;
+    for (let d = 0; d < 7; d++) if (availability.minutesByWeekday[weekdayOf(addDays(weekStart, d))] >= 30) n++;
+    return n;
+  };
+  let plannedDays = 0;
+  let netMisses = 0;
+  const firstW = Math.floor(daysBetween(planStart, addDays(today, -windowDays)) / 7);
+  const lastW = Math.floor(daysBetween(planStart, addDays(today, -1)) / 7);
+  for (let w = firstW; w <= lastW; w++) {
+    if (w < 0) continue;
+    const weekStart = addDays(planStart, w * 7);
+    if (daysBetween(weekStart, today) < 7) continue; // only fully-elapsed weeks are judged
+    if (daysBetween(weekStart, today) > windowDays) continue;
+    const weekDates = Array.from({ length: 7 }, (_, d) => addDays(weekStart, d));
+    const engaged = weekDates.some((d) => trained.has(d) || feedbackDates.has(d));
+    if (!engaged) continue; // didn't log or train at all that week → not judged (silence ≠ a miss)
+    const cap = phaseForWeek(w) === 'deload' ? Math.min(weeklyTargetBase, 4) : weeklyTargetBase;
+    const target = Math.min(availDaysInWeek(weekStart), cap);
+    const trainedThisWeek = weekDates.filter((d) => trained.has(d)).length;
+    const explicitMiss = weekDates.some((d) => missDates.has(d));
+    plannedDays += target;
+    netMisses += explicitMiss ? Math.max(0, target - trainedThisWeek) : 0;
+  }
+  return { plannedDays, completedDays: plannedDays - netMisses, netMisses };
 }
 
 /** Actual trained minutes per date from watch imports; the longest activity wins when a date has several. */
@@ -169,7 +246,13 @@ export function generatePlan(state: UserState, today: string, internal?: { skipP
   }
   const cfg: Config = { ...config, goal, availability };
 
-  const learned = learnProfile(state.events, today);
+  // Adherence-based miss accounting: intended vs actually-trained days per week, so day-swaps and
+  // type-changes don't register as misses. Measured against the unpenalized base target.
+  const targetBase = Math.max(2, Math.min(6, cfg.assessment.weeklySessionsHistorical + 1));
+  const adherence = weeklyAdherence(state.events, availability, config.planStart, today, targetBase, 28);
+  const netMisses21 = weeklyAdherence(state.events, availability, config.planStart, today, targetBase, 21).netMisses;
+
+  const learned = learnProfile(state.events, today, netMisses21);
   notices.push(...learned.rationale);
   const priorFingerInjury = config.assessment.injuryHistory.includes('finger') || config.assessment.injuryHistory.includes('wrist');
   const fingerGap = priorFingerInjury ? 3 : learned.fingerGapDays;
@@ -587,10 +670,11 @@ export function generatePlan(state: UserState, today: string, internal?: { skipP
     }
   }
 
-  const missed = state.events.filter((e) => e.kind === 'feedback' && !e.completed && daysBetween(e.date, today) <= 7).length;
-  if (missed >= 2) {
+  // Only flag a real training shortfall (days short of intent, crediting swaps/substitutions/adhoc), not raw misses.
+  const recentShortfall = weeklyAdherence(state.events, availability, config.planStart, today, targetBase, 14).netMisses;
+  if (recentShortfall >= 2) {
     notices.push(
-      'Multiple sessions missed recently — this week is unchanged, but consider updating your availability so the plan matches real life.',
+      'You trained fewer days than planned over the last couple of weeks — moving or swapping sessions is fine, but if this is the new normal, update your availability so the plan matches real life.',
     );
   }
 
@@ -624,5 +708,6 @@ export function generatePlan(state: UserState, today: string, internal?: { skipP
     notices,
     goal: cfg.goal,
     availability: cfg.availability,
+    adherence,
   };
 }

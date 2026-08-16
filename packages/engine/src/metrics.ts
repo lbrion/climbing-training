@@ -24,14 +24,8 @@ export function computeMetrics(state: UserState, today: string): PlanMetrics {
     if (e.kind === 'feedback') lastFeedback.set(e.sessionId, e);
   }
 
-  const past = plan.sessions.filter((s) => s.date < today && daysBetween(s.date, today) <= 28);
-  let completed = 0;
-  let missed = 0;
-  for (const s of past) {
-    const fb = lastFeedback.get(s.id);
-    if (fb?.completed) completed++;
-    else if (fb) missed++;
-  }
+  // Adherence over completed weeks: intended vs actually-trained days, crediting swaps/substitutions/adhoc.
+  const { plannedDays, completedDays, netMisses } = plan.adherence;
 
   let prGrade: number | null = null;
   let prDate: string | null = null;
@@ -78,10 +72,10 @@ export function computeMetrics(state: UserState, today: string): PlanMetrics {
     .sort((a, b) => b.count - a.count);
 
   return {
-    planned28d: past.length,
-    completed28d: completed,
-    missed28d: missed,
-    completionPct: past.length ? Math.round((completed / past.length) * 100) : null,
+    planned28d: plannedDays,
+    completed28d: completedDays,
+    missed28d: netMisses,
+    completionPct: plannedDays ? Math.round((completedDays / plannedDays) * 100) : null,
     prGrade,
     prDate,
     weeklyLoads,

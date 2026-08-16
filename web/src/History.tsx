@@ -36,7 +36,7 @@ export function HistoryView({ state, onOpen }: { state: AppState; onOpen: (s: Se
             <span className="stat-label">Completion 4wk</span>
             <span className="stat-value">{metrics.completionPct !== null ? `${metrics.completionPct}%` : '—'}</span>
             <span className="stat-sub">
-              {metrics.completed28d}/{metrics.planned28d} sessions
+              {metrics.completed28d}/{metrics.planned28d} training days
             </span>
           </div>
           <div className="stat wide">

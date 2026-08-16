@@ -14,7 +14,11 @@ function median(xs: number[]): number {
   return s[Math.floor(s.length / 2)];
 }
 
-export function learnProfile(events: PlanEvent[], today: string): LearnedProfile {
+/**
+ * @param netMisses Real training shortfall over the last 3 weeks (days short of intent, already crediting
+ *   moved/substituted/adhoc/imported sessions). Passed in from generatePlan's adherence pass.
+ */
+export function learnProfile(events: PlanEvent[], today: string, netMisses: number): LearnedProfile {
   const rationale: string[] = [];
 
   const feedback = events.filter(
@@ -28,7 +32,6 @@ export function learnProfile(events: PlanEvent[], today: string): LearnedProfile
   const recent = feedback.filter((e) => daysBetween(e.date, today) <= 21);
   const rpes = recent.filter((e) => e.completed && e.rpe !== null).map((e) => e.rpe!);
   const meanRpe = rpes.length ? rpes.reduce((a, b) => a + b, 0) / rpes.length : null;
-  const misses = recent.filter((e) => !e.completed).length;
   const anyFingerPain = feedback.some(
     (e) => e.pain !== null && (e.pain.site === 'finger' || e.pain.site === 'wrist') && daysBetween(e.date, today) <= 28,
   );
@@ -56,10 +59,10 @@ export function learnProfile(events: PlanEvent[], today: string): LearnedProfile
   }
 
   let capDelta: -1 | 0 | 1 = 0;
-  if (misses >= 3) {
+  if (netMisses >= 3) {
     capDelta = -1;
-    rationale.push('Several missed sessions in the last 3 weeks: weekly session count reduced by one.');
-  } else if (rpes.length >= 6 && misses === 0 && meanRpe !== null && meanRpe <= loThreshold && !anyFingerPain && heavyCount14 === 0) {
+    rationale.push('You trained several days fewer than planned over the last 3 weeks: weekly session count reduced by one.');
+  } else if (rpes.length >= 6 && netMisses === 0 && meanRpe !== null && meanRpe <= loThreshold && !anyFingerPain && heavyCount14 === 0) {
     capDelta = 1;
     rationale.push('Three weeks of full completion at comfortable effort: weekly session count increased by one.');
   }

@@ -420,6 +420,60 @@ describe('generatePlan', () => {
     expect(metrics.prDate).toBe('2026-08-05');
   });
 
+  it('does not count an explicit miss as a shortfall when the session was made up the same week', () => {
+    const plan0 = generatePlan(base, '2026-08-10');
+    const wk0 = plan0.sessions.filter((s) => s.date >= '2026-08-03' && s.date < '2026-08-10');
+    const missOne = wk0[1];
+    const events: UserState['events'] = wk0.map((s) =>
+      s.id === missOne.id
+        ? { kind: 'feedback', sessionId: s.id, date: s.date, completed: false, rpe: null, pain: null }
+        : { kind: 'feedback', sessionId: s.id, date: s.date, completed: true, rpe: 6, pain: null },
+    );
+    // Explicit miss, nothing made up → 1 day short.
+    expect(generatePlan({ ...base, events }, '2026-08-10').adherence.netMisses).toBe(1);
+    // Same miss, but a session was done on a rest day that week → shortfall cancelled.
+    const madeUp = generatePlan(
+      { ...base, events: [...events, { kind: 'adhoc-session', date: '2026-08-04', type: 'volume-boulder' }] },
+      '2026-08-10',
+    );
+    expect(madeUp.adherence.netMisses).toBe(0);
+  });
+
+  it('never counts silent non-logging as a miss', () => {
+    // A brand-new user with weeks of no logs has zero shortfall (and no cap penalty).
+    const plan = generatePlan(base, '2026-09-20');
+    expect(plan.adherence.netMisses).toBe(0);
+    expect(plan.notices.join(' ')).not.toMatch(/reduced by one/);
+  });
+
+  it('reduces the weekly cap for a real multi-week shortfall but not when misses were made up', () => {
+    const plan0 = generatePlan(base, '2026-08-24');
+    const past = plan0.sessions.filter((s) => s.date >= '2026-08-03' && s.date < '2026-08-24');
+    const allMissed: UserState['events'] = past.map((s) => ({
+      kind: 'feedback',
+      sessionId: s.id,
+      date: s.date,
+      completed: false,
+      rpe: null,
+      pain: null,
+    }));
+    const reduced = generatePlan({ ...base, events: allMissed }, '2026-08-24');
+    expect(reduced.adherence.netMisses).toBeGreaterThanOrEqual(3);
+    expect(reduced.notices.join(' ')).toMatch(/reduced by one/);
+    const wk4reduced = reduced.sessions.filter((s) => s.date >= '2026-08-31' && s.date < '2026-09-07');
+    expect(wk4reduced.length).toBe(3);
+
+    // Same explicit misses, but every week's training was made up via adhoc sessions → no penalty.
+    const madeUp: UserState['events'] = [...allMissed];
+    for (const wkStart of ['2026-08-03', '2026-08-10', '2026-08-17'])
+      for (const off of [0, 1, 2, 3]) madeUp.push({ kind: 'adhoc-session', date: addDays(wkStart, off), type: 'volume-boulder' });
+    const notReduced = generatePlan({ ...base, events: madeUp }, '2026-08-24');
+    expect(notReduced.adherence.netMisses).toBe(0);
+    expect(notReduced.notices.join(' ')).not.toMatch(/reduced by one/);
+    const wk4full = notReduced.sessions.filter((s) => s.date >= '2026-08-31' && s.date < '2026-09-07');
+    expect(wk4full.length).toBe(4);
+  });
+
   it('materializes an adhoc session on a rest day and counts it toward the weekly cap', () => {
     // 2026-08-04 is a Tuesday with 0 availability. Cap is 4; the adhoc fifth session drops a future filler.
     const plan = generatePlan({ ...base, events: [{ kind: 'adhoc-session', date: '2026-08-04', type: 'volume-boulder' }] }, '2026-08-03');

@@ -162,6 +162,17 @@ export interface Plan {
   /** Goal and availability the plan was built with: config values overridden by the latest goal/availability events. */
   goal: Goal;
   availability: Availability;
+  /** Training adherence over the last 4 completed weeks — measured by days trained vs intended, not by session bookkeeping. */
+  adherence: Adherence;
+}
+
+export interface Adherence {
+  /** Intended training days across the counted weeks (min of available days and the weekly target). */
+  plannedDays: number;
+  /** Days honored: intended days minus the net shortfall (day-swaps and substitutions count as honored). */
+  completedDays: number;
+  /** Real shortfall: intended days you did not train, after crediting moved/substituted/adhoc/imported sessions. */
+  netMisses: number;
 }
 
 export interface LoadStatus {
