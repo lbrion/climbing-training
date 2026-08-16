@@ -363,6 +363,24 @@ h3 {
   font-size: 13px;
 }
 
+.rest-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.change-list {
+  list-style: none;
+  padding: 0;
+  margin: 4px 0 8px;
+}
+.change-list li {
+  font-size: 13px;
+  color: var(--chalk);
+  padding: 7px 11px;
+  background: var(--surface2);
+  border-radius: 9px;
+  margin-bottom: 6px;
+}
 .quick-miss {
   margin-top: 10px;
   padding: 7px 12px;

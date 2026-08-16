@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
 import { Decoder, Stream } from '@garmin/fitsdk';
-import { computeMetrics, generatePlan, type PlanEvent, type UserState } from '@climb/engine';
+import { computeMetrics, generatePlan, recommendSessionFor, type PlanEvent, type UserState } from '@climb/engine';
 
 const dbPath = process.env.DB_PATH ?? './data/climb.db';
 fs.mkdirSync(path.dirname(dbPath), { recursive: true });
@@ -217,6 +217,26 @@ app.post('/api/setup', (req, res) => {
     metrics: computeMetrics(state, t),
     events: state.events,
   });
+});
+
+// Recommend the best session to slot onto a given (empty) day; the engine picks by weakness + safety rules.
+app.get('/api/recommend', (req, res) => {
+  const state = loadState();
+  if (!state) return res.status(409).json({ error: 'not configured' });
+  const date = req.query.date;
+  if (typeof date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return res.status(400).json({ error: 'bad date' });
+  res.json({ type: recommendSessionFor(state, today(req), date) });
+});
+
+// Dry-run: compute the full AppState as if `event` were appended, WITHOUT persisting it. Powers preview-before-keep.
+app.post('/api/preview', (req, res) => {
+  const parsed = eventSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+  const state = loadState();
+  if (!state) return res.status(409).json({ error: 'not configured' });
+  const next: UserState = { config: state.config, events: [...state.events, parsed.data as PlanEvent] };
+  const t = today(req);
+  res.json({ configured: true, config: next.config, plan: generatePlan(next, t), metrics: computeMetrics(next, t), events: next.events });
 });
 
 // FIT ingestion: parses a watch export (COROS, Garmin, …) into an imported-activity event.

@@ -712,3 +712,81 @@ export function generatePlan(state: UserState, today: string, internal?: { skipP
     adherence,
   };
 }
+
+/**
+ * Recommends the highest-value session to slot onto an otherwise-empty day, using the planner's own weakness
+ * ranking and safety rules (equipment/grade gates, pain restrictions, 48/72h finger spacing, no adjacent hard
+ * days). Prefers a priority session the week is short on; falls back to a safe low-intensity option. Never throws
+ * — mobility/prehab always fits — so the "plan a session" flow always has something to propose.
+ */
+export function recommendSessionFor(state: UserState, today: string, date: string): SessionType {
+  const plan = generatePlan(state, today);
+  const existing = plan.sessions.find((s) => s.date === date && !s.id.startsWith('adhoc-'));
+  if (existing) return existing.type;
+
+  const { config } = state;
+  let availability = config.availability;
+  let goal = config.goal;
+  for (const e of state.events) {
+    if (e.kind === 'availability' && e.date <= today) availability = e.availability;
+    if (e.kind === 'goal' && e.date <= today) goal = e.goal;
+  }
+  const cfg: Config = { ...config, goal, availability };
+  const targetBase = Math.max(2, Math.min(6, cfg.assessment.weeklySessionsHistorical + 1));
+  const learned = learnProfile(
+    state.events,
+    today,
+    weeklyAdherence(state.events, availability, config.planStart, today, targetBase, 3).netMisses,
+  );
+  const weeklyCap = Math.max(2, Math.min(6, cfg.assessment.weeklySessionsHistorical + 1 + learned.capDelta));
+  const week = Math.max(0, Math.floor(daysBetween(config.planStart, date) / 7));
+  const phase = phaseForWeek(week);
+  const priorFingerInjury = config.assessment.injuryHistory.includes('finger') || config.assessment.injuryHistory.includes('wrist');
+  const fingerGap = priorFingerInjury ? 3 : learned.fingerGapDays;
+  const pain = recentPain(state.events, today);
+  const painActive = daysBetween(today, date) <= 7 ? pain : { finger: false, upperLimb: false, fingerUntil: null, upperUntil: null };
+
+  const ideal = weeklySessionTypes(cfg, weeklyCap, phase, painActive, []);
+
+  // Types already covered this week by a completed or still-planned session (missed ones stay eligible).
+  const lastCompleted = new Map<string, boolean>();
+  for (const e of state.events) if (e.kind === 'feedback') lastCompleted.set(e.sessionId, e.completed);
+  const weekStart = addDays(config.planStart, week * 7);
+  const covered = new Set<SessionType>();
+  for (const s of plan.sessions) {
+    if (s.date < weekStart || daysBetween(weekStart, s.date) >= 7 || s.date === date) continue;
+    if (lastCompleted.get(s.id) === false) continue; // missed → still worth recommending
+    covered.add(s.type);
+  }
+
+  const fits = (t: SessionType): boolean => {
+    const tmpl = TEMPLATES[t];
+    if (!templateAllowed(t, cfg, cfg.equipment)) return false;
+    if (painActive.finger && tmpl.fingerLoad) return false;
+    if (painActive.upperLimb && tmpl.intensity === 'high') return false;
+    if (phase === 'deload' && tmpl.intensity === 'high') return false;
+    if (
+      tmpl.fingerLoad &&
+      tmpl.intensity === 'high' &&
+      plan.sessions.some(
+        (o) =>
+          o.date !== date &&
+          TEMPLATES[o.type].fingerLoad &&
+          TEMPLATES[o.type].intensity === 'high' &&
+          Math.abs(daysBetween(o.date, date)) < fingerGap,
+      )
+    )
+      return false;
+    if (
+      tmpl.intensity === 'high' &&
+      plan.sessions.some((o) => o.date !== date && TEMPLATES[o.type].intensity === 'high' && Math.abs(daysBetween(o.date, date)) <= 1)
+    )
+      return false;
+    return true;
+  };
+
+  for (const t of ideal) if (!covered.has(t) && fits(t)) return t;
+  for (const t of ideal) if (fits(t)) return t;
+  for (const t of ['technique', 'aerobic-capacity', 'mobility-prehab'] as SessionType[]) if (fits(t)) return t;
+  return 'mobility-prehab';
+}

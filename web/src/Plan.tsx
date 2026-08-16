@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { TEMPLATES, type Session, type SessionType } from '@climb/engine';
 import { api, type AppState } from './api.js';
 import { HistoryView } from './History.js';
+import { PlanDaySheet } from './PlanDaySheet.js';
 
 const PHASE_LABEL: Record<string, string> = {
   base: 'Base',
@@ -71,7 +72,17 @@ function SessionCard({
   );
 }
 
-function RestCard({ date, onAdd, past }: { date: string; onAdd: (date: string, type: SessionType) => Promise<void>; past?: boolean }) {
+function RestCard({
+  date,
+  onAdd,
+  onPlan,
+  past,
+}: {
+  date: string;
+  onAdd: (date: string, type: SessionType) => Promise<void>;
+  onPlan: (date: string) => void;
+  past?: boolean;
+}) {
   const [picking, setPicking] = useState(false);
   const [busy, setBusy] = useState(false);
   return (
@@ -81,9 +92,16 @@ function RestCard({ date, onAdd, past }: { date: string; onAdd: (date: string, t
       </div>
       <div className="card-sub">{past ? 'No session was planned or logged this day.' : 'Recovery. Optional walk or light stretching.'}</div>
       {!picking ? (
-        <button className="quick-miss" onClick={() => setPicking(true)}>
-          {past ? '＋ Add a session you did' : '＋ Log a session anyway'}
-        </button>
+        <div className="rest-actions">
+          {!past && (
+            <button className="quick-miss" onClick={() => onPlan(date)}>
+              ＋ Plan a session
+            </button>
+          )}
+          <button className="quick-miss" onClick={() => setPicking(true)}>
+            {past ? '＋ Add a session you did' : 'Log one I did'}
+          </button>
+        </div>
       ) : (
         <select
           autoFocus
@@ -138,6 +156,7 @@ export function PlanView({
   const [view, setView] = useState<View>(() => (localStorage.getItem('planView') as View) ?? 'list');
   const [selected, setSelected] = useState(today);
   const [month, setMonth] = useState(today.slice(0, 7));
+  const [planningDate, setPlanningDate] = useState<string | null>(null);
 
   const setViewPersist = (v: View) => {
     setView(v);
@@ -248,7 +267,7 @@ export function PlanView({
                 <div className="day-body">
                   <h2 className={date === today ? 'today' : ''}>{date === today ? `Today · ${fmtDay(date)}` : fmtDay(date)}</h2>
                   {daySessions.length === 0 ? (
-                    <RestCard date={date} onAdd={addSession} />
+                    <RestCard date={date} onAdd={addSession} onPlan={setPlanningDate} />
                   ) : (
                     daySessions.map((s) => (
                       <SessionCard key={s.id} s={s} done={doneById.get(s.id) ?? null} onOpen={onOpen} onMiss={quickMiss} />
@@ -311,7 +330,7 @@ export function PlanView({
           <section>
             <h2 className={selected === today ? 'today' : ''}>{selected === today ? `Today · ${fmtDay(selected)}` : fmtDay(selected)}</h2>
             {sessionsOn(selected).length === 0 ? (
-              <RestCard date={selected} onAdd={addSession} past={selected < today} />
+              <RestCard date={selected} onAdd={addSession} onPlan={setPlanningDate} past={selected < today} />
             ) : (
               sessionsOn(selected).map((s) => (
                 <SessionCard key={s.id} s={s} done={doneById.get(s.id) ?? null} onOpen={onOpen} onMiss={quickMiss} />
@@ -319,6 +338,17 @@ export function PlanView({
             )}
           </section>
         </>
+      )}
+      {planningDate && (
+        <PlanDaySheet
+          date={planningDate}
+          currentPlan={plan}
+          onClose={() => setPlanningDate(null)}
+          onKept={(next) => {
+            onUpdate(next);
+            setPlanningDate(null);
+          }}
+        />
       )}
     </main>
   );

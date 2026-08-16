@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { generatePlan, daysBetween, addDays } from './generate.js';
+import { generatePlan, daysBetween, addDays, recommendSessionFor } from './generate.js';
 import { computeMetrics } from './metrics.js';
 import { TEMPLATES } from './templates.js';
 import type { UserState } from './types.js';
@@ -418,6 +418,29 @@ describe('generatePlan', () => {
     const metrics = computeMetrics({ ...base, events }, '2026-08-08');
     expect(metrics.prGrade).toBe(7);
     expect(metrics.prDate).toBe('2026-08-05');
+  });
+
+  it('recommends a safe, non-conflicting session for an empty day', () => {
+    // A rest day (Tue, 0 availability) — recommend something allowed and not a hard finger session adjacent
+    // to an existing hard day.
+    const rec = generatePlan(base, '2026-08-03');
+    void rec;
+    const type = recommendSessionFor(base, '2026-08-03', '2026-08-04');
+    expect(TEMPLATES[type]).toBeDefined();
+    expect(type).not.toBe('rest');
+    // Must respect equipment/grade gates (base has no boardWall, so never board-power).
+    expect(type).not.toBe('board-power');
+  });
+
+  it('never recommends finger-loading work while finger pain is active', () => {
+    const plan0 = generatePlan(base, '2026-08-03');
+    const s0 = plan0.sessions.find((s) => s.date === '2026-08-03')!;
+    const hurt: UserState = {
+      ...base,
+      events: [{ kind: 'feedback', sessionId: s0.id, date: '2026-08-03', completed: true, rpe: 7, pain: { site: 'finger', severity: 2 } }],
+    };
+    const type = recommendSessionFor(hurt, '2026-08-04', '2026-08-05');
+    expect(TEMPLATES[type].fingerLoad).toBe(false);
   });
 
   it('does not count an explicit miss as a shortfall when the session was made up the same week', () => {

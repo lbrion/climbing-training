@@ -1,4 +1,4 @@
-import type { Config, Plan, PlanEvent, PlanMetrics } from '@climb/engine';
+import type { Config, Plan, PlanEvent, PlanMetrics, SessionType } from '@climb/engine';
 
 export interface AppState {
   configured: boolean;
@@ -44,5 +44,10 @@ export const api = {
   importFit: (file: File) =>
     fetch(`/api/import/fit${q()}`, { method: 'POST', headers: { 'Content-Type': 'application/octet-stream' }, body: file }).then((r) =>
       json<AppState & { import: FitImportReport }>(r),
+    ),
+  recommend: (date: string) => fetch(`/api/recommend${q()}&date=${date}`).then((r) => json<{ type: SessionType }>(r)),
+  preview: (event: PlanEvent) =>
+    fetch(`/api/preview${q()}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(event) }).then(
+      (r) => json<AppState>(r),
     ),
 };
