@@ -31,12 +31,23 @@ export interface Equipment {
   pullupBar: boolean;
 }
 
+/** A stretch of days with different training resources (e.g. travel): its equipment overrides home equipment
+ * for dates in [from, to]. Optional availability overrides the weekly schedule for those days too. */
+export interface TravelWindow {
+  from: string;
+  to: string;
+  equipment: Equipment;
+  availability?: Availability;
+  label?: string;
+}
+
 export interface Config {
   assessment: Assessment;
   goal: Goal;
   availability: Availability;
   equipment: Equipment;
   planStart: string;
+  travel?: TravelWindow[];
 }
 
 export type SessionType =

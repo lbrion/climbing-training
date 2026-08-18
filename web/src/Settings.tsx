@@ -1,6 +1,13 @@
 import { useRef, useState } from 'react';
-import type { Config, Goal, Plan } from '@climb/engine';
+import type { Config, Equipment, Goal, Plan, TravelWindow } from '@climb/engine';
 import { api, localToday, type AppState, type FitImportReport } from './api.js';
+
+const EQUIP_KEYS: (keyof Equipment)[] = ['climbingGym', 'hangboard', 'boardWall', 'weights', 'pullupBar'];
+const equipLabel = (k: keyof Equipment) => k.replace(/([A-Z])/g, ' $1').toLowerCase();
+const equipList = (e: Equipment) =>
+  EQUIP_KEYS.filter((k) => e[k])
+    .map(equipLabel)
+    .join(', ') || 'bodyweight only';
 
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const SKILLS = ['overhang', 'slab', 'dynamic', 'crimps', 'compression', 'endurance'] as const;
@@ -22,6 +29,12 @@ export function Settings({
   const [goal, setGoal] = useState<Goal>(plan.goal);
   const [minutes, setMinutes] = useState<Config['availability']['minutesByWeekday']>(plan.availability.minutesByWeekday);
   const [equipment, setEquipment] = useState<Config['equipment']>(config.equipment);
+  const [travel, setTravel] = useState<TravelWindow[]>(config.travel ?? []);
+  const [draft, setDraft] = useState<TravelWindow>({
+    from: localToday(),
+    to: localToday(),
+    equipment: { climbingGym: false, hangboard: false, boardWall: false, weights: false, pullupBar: true },
+  });
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -46,6 +59,12 @@ export function Settings({
   const goalDirty = JSON.stringify(goal) !== JSON.stringify(plan.goal);
   const minutesDirty = JSON.stringify(minutes) !== JSON.stringify(plan.availability.minutesByWeekday);
   const equipmentDirty = JSON.stringify(equipment) !== JSON.stringify(config.equipment);
+  const travelDirty = JSON.stringify(travel) !== JSON.stringify(config.travel ?? []);
+  const addTrip = () => {
+    if (draft.from > draft.to) return;
+    setTravel([...travel, draft].sort((a, b) => a.from.localeCompare(b.from)));
+    setDraft({ ...draft, equipment: { ...draft.equipment } });
+  };
 
   const save = async (section: string, fn: () => Promise<AppState>) => {
     setBusy(true);
@@ -161,6 +180,50 @@ export function Settings({
           onClick={() => save('equipment', () => api.setup({ ...config, equipment }))}
         >
           {saved === 'equipment' && !equipmentDirty ? 'Saved ✓' : 'Save equipment'}
+        </button>
+      </section>
+
+      <section>
+        <h2>Travel</h2>
+        <p className="hint">Add days you'll be away and pick the resources you'll have. The plan swaps those days' sessions to fit.</p>
+        {travel.map((w, i) => (
+          <div key={i} className="card-sub travel-window">
+            <span className="mono">
+              {w.from}
+              {w.from !== w.to ? ` → ${w.to}` : ''}
+            </span>
+            <span className="mono muted">{equipList(w.equipment)}</span>
+            <button className="ghost" onClick={() => setTravel(travel.filter((_, idx) => idx !== i))}>
+              Remove
+            </button>
+          </div>
+        ))}
+        <fieldset>
+          <legend>Add a trip</legend>
+          <label className="dayrow">
+            From
+            <input type="date" value={draft.from} onChange={(e) => setDraft({ ...draft, from: e.target.value })} />
+          </label>
+          <label className="dayrow">
+            To
+            <input type="date" value={draft.to} onChange={(e) => setDraft({ ...draft, to: e.target.value })} />
+          </label>
+          {EQUIP_KEYS.map((k) => (
+            <label key={k} className="check">
+              <input
+                type="checkbox"
+                checked={draft.equipment[k]}
+                onChange={(e) => setDraft({ ...draft, equipment: { ...draft.equipment, [k]: e.target.checked } })}
+              />
+              {equipLabel(k)}
+            </label>
+          ))}
+          <button disabled={draft.from > draft.to} onClick={addTrip}>
+            Add trip
+          </button>
+        </fieldset>
+        <button className="primary" disabled={busy || !travelDirty} onClick={() => save('travel', () => api.setup({ ...config, travel }))}>
+          {saved === 'travel' && !travelDirty ? 'Saved ✓' : 'Save travel'}
         </button>
       </section>
 

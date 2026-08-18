@@ -368,6 +368,16 @@ h3 {
   flex-wrap: wrap;
   gap: 8px;
 }
+.travel-window {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+}
+.travel-window .muted {
+  color: var(--muted);
+}
+.travel-window .ghost {
+  margin-left: auto;
+}
 .change-list {
   list-style: none;
   padding: 0;

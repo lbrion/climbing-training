@@ -47,6 +47,30 @@ function templateAllowed(type: SessionType, cfg: Config, eq: Equipment): boolean
   return true;
 }
 
+/** Equipment available on a given date: a travel window's equipment overrides home equipment for its range. */
+export function equipmentForDate(cfg: Config, date: string): Equipment {
+  let eq = cfg.equipment;
+  for (const w of cfg.travel ?? []) if (date >= w.from && date <= w.to) eq = w.equipment;
+  return eq;
+}
+
+/** Availability on a given date: a travel window may override the weekly availability for its range. */
+function availabilityForDate(cfg: Config, date: string): Availability {
+  let av = cfg.availability;
+  for (const w of cfg.travel ?? []) if (date >= w.from && date <= w.to && w.availability) av = w.availability;
+  return av;
+}
+
+/** Downgrade a session to something doable on the day's equipment, preserving training quality where possible. */
+function fitToEquipment(desired: SessionType, dayEquip: Equipment, cfg: Config): SessionType {
+  if (templateAllowed(desired, cfg, dayEquip)) return desired;
+  const ladder: SessionType[] = TEMPLATES[desired].fingerLoad
+    ? ['hangboard-subhang', 'strength', 'mobility-prehab']
+    : ['strength', 'volume-boulder', 'technique', 'aerobic-capacity', 'hangboard-subhang', 'mobility-prehab'];
+  for (const t of ladder) if (templateAllowed(t, cfg, dayEquip)) return t;
+  return 'mobility-prehab'; // needs no equipment — always doable
+}
+
 interface RecentPain {
   finger: boolean;
   upperLimb: boolean;
@@ -271,6 +295,13 @@ export function generatePlan(state: UserState, today: string, internal?: { skipP
 
   const start = config.planStart;
   const endDay = daysBetween(start, today) + HORIZON_DAYS;
+  const horizonEnd = addDays(today, HORIZON_DAYS);
+  for (const w of cfg.travel ?? []) {
+    if (w.to >= today && w.from <= horizonEnd) {
+      const range = w.from === w.to ? w.from : `${w.from}–${w.to}`;
+      notices.push(`${w.label ? w.label + ' — ' : 'Traveling '}${range}: sessions on those days use the equipment you selected.`);
+    }
+  }
   const sessions: Session[] = [];
   const adhocEvents = state.events.filter((e): e is Extract<PlanEvent, { kind: 'adhoc-session' }> => e.kind === 'adhoc-session');
   // Anchors for the hard-finger spacing rule: prior sessions plus any unplanned hard finger work the user logged.
@@ -288,14 +319,18 @@ export function generatePlan(state: UserState, today: string, internal?: { skipP
     const days: string[] = [];
     for (let d = 0; d < 7; d++) {
       const date = addDays(weekStart, d);
-      if (availability.minutesByWeekday[weekdayOf(date)] >= 30) days.push(date);
+      if (availabilityForDate(cfg, date).minutesByWeekday[weekdayOf(date)] >= 30) days.push(date);
     }
     const painActive: RecentPain =
       daysBetween(today, weekStart) <= 7 ? pain : { finger: false, upperLimb: false, fingerUntil: null, upperUntil: null };
     const slots = Math.min(days.length, phase === 'deload' ? Math.min(weeklyCap, 4) : weeklyCap);
     const scheduledDays = Array.from({ length: slots }, (_, i) => days[Math.floor((i * days.length) / slots)]);
+    // Pick the week's session types against the equipment on a representative training day, so a travel week
+    // draws from what you'll actually have rather than home gear it would only swap away.
+    const selEquip = equipmentForDate(cfg, scheduledDays[Math.floor(scheduledDays.length / 2)] ?? weekStart);
+    const weekCfg: Config = { ...cfg, equipment: selEquip };
     const types = orderForSpacing(
-      weeklySessionTypes(cfg, slots, phase, painActive, w === Math.floor(daysBetween(start, today) / 7) ? notices : []),
+      weeklySessionTypes(weekCfg, slots, phase, painActive, w === Math.floor(daysBetween(start, today) / 7) ? notices : []),
     );
 
     types.forEach((type, slot) => {
@@ -316,8 +351,15 @@ export function generatePlan(state: UserState, today: string, internal?: { skipP
           hardFingerAnchors.push(date);
         }
       }
+      // Honor the equipment actually available on this date (travel windows override home gear).
+      const dayEquip = equipmentForDate(cfg, date);
+      const fitted = fitToEquipment(effectiveType, dayEquip, cfg);
+      if (fitted !== effectiveType) {
+        warnings.push(`Limited equipment on this day — ${TEMPLATES[fitted].title} instead of ${TEMPLATES[effectiveType].title}.`);
+        effectiveType = fitted;
+      }
       const t = TEMPLATES[effectiveType];
-      const budget = availability.minutesByWeekday[weekdayOf(date)];
+      const budget = availabilityForDate(cfg, date).minutesByWeekday[weekdayOf(date)];
       const scale = phase === 'deload' ? 0.6 : 1;
       sessions.push({
         id: `s-${w}-${slot}`,
@@ -758,7 +800,9 @@ export function recommendSessionFor(state: UserState, today: string, date: strin
   const pain = recentPain(state.events, today);
   const painActive = daysBetween(today, date) <= 7 ? pain : { finger: false, upperLimb: false, fingerUntil: null, upperUntil: null };
 
-  const ideal = weeklySessionTypes(cfg, weeklyCap, phase, painActive, []);
+  // Recommend against the equipment actually available that day (travel windows override home gear).
+  const dayEquip = equipmentForDate(cfg, date);
+  const ideal = weeklySessionTypes({ ...cfg, equipment: dayEquip }, weeklyCap, phase, painActive, []);
 
   // Types already covered this week by a completed or still-planned session (missed ones stay eligible).
   const lastCompleted = new Map<string, boolean>();
@@ -773,7 +817,7 @@ export function recommendSessionFor(state: UserState, today: string, date: strin
 
   const fits = (t: SessionType): boolean => {
     const tmpl = TEMPLATES[t];
-    if (!templateAllowed(t, cfg, cfg.equipment)) return false;
+    if (!templateAllowed(t, cfg, dayEquip)) return false;
     if (painActive.finger && tmpl.fingerLoad) return false;
     if (painActive.upperLimb && tmpl.intensity === 'high') return false;
     if (phase === 'deload' && tmpl.intensity === 'high') return false;

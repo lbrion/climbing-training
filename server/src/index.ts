@@ -147,6 +147,14 @@ const eventSchema = z.discriminatedUnion('kind', [
   }),
 ]);
 
+const equipmentSchema = z.object({
+  climbingGym: z.boolean(),
+  hangboard: z.boolean(),
+  boardWall: z.boolean(),
+  weights: z.boolean(),
+  pullupBar: z.boolean(),
+});
+
 const configSchema = z.object({
   assessment: z.object({
     date: z.string(),
@@ -170,14 +178,20 @@ const configSchema = z.object({
   }),
   goal: eventSchema.options[4].shape.goal,
   availability: z.object({ minutesByWeekday: z.array(z.number().min(0).max(600)).length(7) }),
-  equipment: z.object({
-    climbingGym: z.boolean(),
-    hangboard: z.boolean(),
-    boardWall: z.boolean(),
-    weights: z.boolean(),
-    pullupBar: z.boolean(),
-  }),
+  equipment: equipmentSchema,
   planStart: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  travel: z
+    .array(
+      z.object({
+        from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+        to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+        equipment: equipmentSchema,
+        availability: z.object({ minutesByWeekday: z.array(z.number().min(0).max(600)).length(7) }).optional(),
+        label: z.string().max(60).optional(),
+      }),
+    )
+    .max(50)
+    .optional(),
 });
 
 const app = express();

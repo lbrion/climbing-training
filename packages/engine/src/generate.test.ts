@@ -460,6 +460,50 @@ describe('generatePlan', () => {
     expect(aero.hints.some((h) => h.includes('Progress the difficulty'))).toBe(false);
   });
 
+  it('adjusts travel-week sessions to the equipment you have there', () => {
+    const travelCfg: UserState = {
+      ...base,
+      config: {
+        ...base.config,
+        travel: [
+          {
+            from: '2026-08-17',
+            to: '2026-08-23',
+            equipment: { climbingGym: false, hangboard: true, boardWall: false, weights: false, pullupBar: false },
+          },
+        ],
+      },
+    };
+    const plan = generatePlan(travelCfg, '2026-08-03');
+    const travelSessions = plan.sessions.filter((s) => s.date >= '2026-08-17' && s.date <= '2026-08-23');
+    expect(travelSessions.length).toBeGreaterThan(0);
+    const allowed = new Set(['hangboard-max', 'hangboard-subhang', 'mobility-prehab']);
+    for (const s of travelSessions) expect(allowed.has(s.type)).toBe(true);
+    // Home weeks are unaffected — gym sessions still scheduled before travel.
+    const homeSessions = plan.sessions.filter((s) => s.date < '2026-08-17');
+    expect(homeSessions.some((s) => TEMPLATES[s.type].needs.gym)).toBe(true);
+    expect(plan.notices.join(' ')).toMatch(/2026-08-17/);
+  });
+
+  it('with no equipment on a travel day, falls back to bodyweight mobility work', () => {
+    const travelCfg: UserState = {
+      ...base,
+      config: {
+        ...base.config,
+        travel: [
+          {
+            from: '2026-08-17',
+            to: '2026-08-23',
+            equipment: { climbingGym: false, hangboard: false, boardWall: false, weights: false, pullupBar: false },
+          },
+        ],
+      },
+    };
+    const plan = generatePlan(travelCfg, '2026-08-03');
+    const travelSessions = plan.sessions.filter((s) => s.date >= '2026-08-17' && s.date <= '2026-08-23');
+    for (const s of travelSessions) expect(s.type).toBe('mobility-prehab');
+  });
+
   it('recommends a safe, non-conflicting session for an empty day', () => {
     // A rest day (Tue, 0 availability) — recommend something allowed and not a hard finger session adjacent
     // to an existing hard day.
