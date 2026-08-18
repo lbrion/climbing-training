@@ -420,6 +420,46 @@ describe('generatePlan', () => {
     expect(metrics.prDate).toBe('2026-08-05');
   });
 
+  it('does not let edited (superseding) feedback inflate the RPE trend', () => {
+    const future = { kind: 'adhoc-session' as const, date: '2026-08-15', type: 'strength' as const };
+    // One real strength session on 08-05, logged three times (edits) at RPE 3.
+    const oneEdited: UserState['events'] = [
+      { kind: 'adhoc-session', date: '2026-08-05', type: 'strength' },
+      future,
+      { kind: 'feedback', sessionId: 'adhoc-2026-08-05-0', date: '2026-08-05', completed: true, rpe: 3, pain: null },
+      { kind: 'feedback', sessionId: 'adhoc-2026-08-05-0', date: '2026-08-05', completed: true, rpe: 3, pain: null },
+      { kind: 'feedback', sessionId: 'adhoc-2026-08-05-0', date: '2026-08-05', completed: true, rpe: 3, pain: null },
+    ];
+    const editedPlan = generatePlan({ ...base, events: oneEdited }, '2026-08-12');
+    const futureStrength = editedPlan.sessions.find((s) => s.id === 'adhoc-2026-08-15-0')!;
+    expect(futureStrength.hints.some((h) => h.includes('Progress the difficulty'))).toBe(false);
+
+    // Three DISTINCT strength sessions at RPE 3 legitimately trigger the progression hint.
+    const threeReal: UserState['events'] = [
+      future,
+      ...['2026-08-05', '2026-08-07', '2026-08-09'].flatMap((d) => [
+        { kind: 'adhoc-session' as const, date: d, type: 'strength' as const },
+        { kind: 'feedback' as const, sessionId: `adhoc-${d}-0`, date: d, completed: true, rpe: 3, pain: null },
+      ]),
+    ];
+    const realPlan = generatePlan({ ...base, events: threeReal }, '2026-08-12');
+    const fs2 = realPlan.sessions.find((s) => s.id === 'adhoc-2026-08-15-0')!;
+    expect(fs2.hints.some((h) => h.includes('Progress the difficulty'))).toBe(true);
+  });
+
+  it('never tells the user to make a low-intensity session harder', () => {
+    const events: UserState['events'] = [
+      { kind: 'adhoc-session', date: '2026-08-15', type: 'aerobic-capacity' },
+      ...['2026-08-05', '2026-08-07', '2026-08-09'].flatMap((d) => [
+        { kind: 'adhoc-session' as const, date: d, type: 'aerobic-capacity' as const },
+        { kind: 'feedback' as const, sessionId: `adhoc-${d}-0`, date: d, completed: true, rpe: 2, pain: null },
+      ]),
+    ];
+    const plan = generatePlan({ ...base, events }, '2026-08-12');
+    const aero = plan.sessions.find((s) => s.id === 'adhoc-2026-08-15-0')!;
+    expect(aero.hints.some((h) => h.includes('Progress the difficulty'))).toBe(false);
+  });
+
   it('recommends a safe, non-conflicting session for an empty day', () => {
     // A rest day (Tue, 0 availability) — recommend something allowed and not a hard finger session adjacent
     // to an existing hard day.

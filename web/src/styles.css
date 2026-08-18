@@ -403,6 +403,35 @@ h3 {
   line-height: 1.45;
   margin: 8px 0;
 }
+.tips-block {
+  margin: 8px 0;
+}
+.tips-toggle {
+  width: 100%;
+  text-align: left;
+  background: var(--surface2);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 8px 12px;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--ochre);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.tips-toggle .chev {
+  margin-left: auto;
+  transition: transform 0.15s ease;
+}
+.tips-toggle .chev.up {
+  transform: rotate(180deg);
+}
+.tips-block .warn,
+.tips-block .hint-line {
+  margin-top: 8px;
+}
 .hint-line {
   background: rgba(123, 167, 247, 0.1);
   border: 1px solid rgba(123, 167, 247, 0.25);

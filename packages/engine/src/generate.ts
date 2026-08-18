@@ -86,10 +86,18 @@ export function latestImports(events: PlanEvent[]): Extract<PlanEvent, { kind: '
   return [...byId.values()];
 }
 
+/** The current feedback for each session: editing appends a superseding event, so the LAST one per session wins.
+ * Anything that aggregates feedback (load, RPE trends) must use this, never the raw event list, to avoid
+ * counting a session's edits multiple times. */
+export function latestFeedback(events: PlanEvent[]): Map<string, Extract<PlanEvent, { kind: 'feedback' }>> {
+  const m = new Map<string, Extract<PlanEvent, { kind: 'feedback' }>>();
+  for (const e of events) if (e.kind === 'feedback') m.set(e.sessionId, e);
+  return m;
+}
+
 /** Dates the user actually trained: any completed session, an adhoc session, or an imported activity. */
 export function trainedDates(events: PlanEvent[]): Set<string> {
-  const last = new Map<string, Extract<PlanEvent, { kind: 'feedback' }>>();
-  for (const e of events) if (e.kind === 'feedback') last.set(e.sessionId, e);
+  const last = latestFeedback(events);
   const out = new Set<string>();
   for (const fb of last.values()) if (fb.completed) out.add(fb.date);
   for (const e of events) if (e.kind === 'adhoc-session') out.add(e.date);
@@ -165,8 +173,8 @@ function computeLoad(events: PlanEvent[], sessions: Map<string, Session>, today:
   let acute = 0;
   let chronic = 0;
   const imported = importedMinutesByDate(events);
-  for (const e of events) {
-    if (e.kind !== 'feedback' || !e.completed || e.rpe === null) continue;
+  for (const e of latestFeedback(events).values()) {
+    if (!e.completed || e.rpe === null) continue;
     const s = sessions.get(e.sessionId);
     const load = e.rpe * (imported.get(e.date) ?? (s ? s.durationMin : 60));
     const age = daysBetween(e.date, today);
@@ -645,8 +653,9 @@ export function generatePlan(state: UserState, today: string, internal?: { skipP
 
   const EXPECTED_RPE: Record<string, number> = { high: 8.5, medium: 6.5, low: 4.5 };
   const rpeByType = new Map<string, number[]>();
-  for (const e of state.events) {
-    if (e.kind !== 'feedback' || !e.completed || e.rpe === null) continue;
+  // Latest feedback per session, so an edited/re-logged session counts once — never inflates the average.
+  for (const e of latestFeedback(state.events).values()) {
+    if (!e.completed || e.rpe === null) continue;
     if (daysBetween(e.date, today) > 45 || daysBetween(e.date, today) < 0) continue;
     const s = byId.get(e.sessionId);
     if (!s) continue;
@@ -657,10 +666,13 @@ export function generatePlan(state: UserState, today: string, internal?: { skipP
   }
   for (const [type, arr] of rpeByType) {
     if (arr.length < 3) continue;
+    const intensity = TEMPLATES[type as SessionType].intensity;
     const mean = arr.reduce((a, b) => a + b, 0) / arr.length;
-    const expected = EXPECTED_RPE[TEMPLATES[type as SessionType].intensity];
+    const expected = EXPECTED_RPE[intensity];
     let hint: string | null = null;
-    if (mean <= expected - 1.5) {
+    // Low-intensity sessions (aerobic, mobility, technique) are meant to stay easy — never tell the user to
+    // push those harder; only warn if they are running them too hot.
+    if (mean <= expected - 1.5 && intensity !== 'low') {
       hint = `Your last ${arr.length} ${TEMPLATES[type as SessionType].title} sessions averaged RPE ${mean.toFixed(1)} (target ~${expected}). Progress the difficulty: harder problems, more load, or smaller edges.`;
     } else if (mean >= expected + 1) {
       hint = `Your last ${arr.length} ${TEMPLATES[type as SessionType].title} sessions averaged RPE ${mean.toFixed(1)} (target ~${expected}). Back off slightly so quality stays high.`;

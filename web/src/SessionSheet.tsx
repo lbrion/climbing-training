@@ -30,6 +30,7 @@ export function SessionSheet({
   const [moveTo, setMoveTo] = useState(session.date);
   const [busy, setBusy] = useState(false);
   const [showInfo, setShowInfo] = useState(false);
+  const [showTips, setShowTips] = useState(false);
   const sheetRef = useRef<HTMLDivElement>(null);
   const startY = useRef<number | null>(null);
   const [dragY, setDragY] = useState(0);
@@ -114,16 +115,29 @@ export function SessionSheet({
         </div>
         <p className="focus">{session.focus}</p>
         {showInfo && <p className="overview">{TEMPLATES[session.type].overview}</p>}
-        {session.warnings.map((w, i) => (
-          <div key={i} className="warn">
-            {w}
+        {session.warnings.length + session.hints.length > 0 && (
+          <div className="tips-block">
+            <button className="tips-toggle" onClick={() => setShowTips(!showTips)} aria-expanded={showTips}>
+              {showTips ? 'Hide' : 'Show'} {session.warnings.length + session.hints.length} note
+              {session.warnings.length + session.hints.length === 1 ? '' : 's'} &amp; tips
+              <span className={`chev${showTips ? ' up' : ''}`}>⌄</span>
+            </button>
+            {showTips && (
+              <>
+                {session.warnings.map((w, i) => (
+                  <div key={`w${i}`} className="warn">
+                    {w}
+                  </div>
+                ))}
+                {session.hints.map((h, i) => (
+                  <div key={`h${i}`} className="hint-line">
+                    {h}
+                  </div>
+                ))}
+              </>
+            )}
           </div>
-        ))}
-        {session.hints.map((h, i) => (
-          <div key={i} className="hint-line">
-            {h}
-          </div>
-        ))}
+        )}
         <ul className="exercises">
           {session.exercises.map((ex, i) => (
             <li key={i} className={exercisesDone.includes(i) ? 'done-ex' : ''} onClick={() => toggleExercise(i)}>
