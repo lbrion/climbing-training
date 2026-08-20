@@ -6,10 +6,12 @@ import type {
   Availability,
   Config,
   Equipment,
+  Intensity,
   LoadStatus,
   Phase,
   Plan,
   PlanEvent,
+  RunType,
   Session,
   SessionType,
   UserState,
@@ -101,6 +103,88 @@ function recentPain(events: PlanEvent[], today: string): RecentPain {
   return out;
 }
 
+// --- Run scoring (cross-training) -------------------------------------------------------------------
+// A run's load is scored with session-RPE (Foster 2001): load = effort(RPE) × duration, the same scale
+// climbing sessions use, so runs fold directly into the acute:chronic load. Effort defaults to the run
+// type, but a synced heart rate (%HRmax) or an explicit RPE overrides it. Intensity tier drives the
+// concurrent-training interference spacing (Wilson 2012, Coffey & Hawley 2017).
+
+type RunEvent = Extract<PlanEvent, { kind: 'run' }>;
+
+/** CR-10 effort anchors per run type, aligned to the app's expected-RPE bands (low 4.5 / med 6.5 / high 8.5). */
+const RUN_DEFAULT_RPE: Record<RunType, number> = { recovery: 3, easy: 4.5, long: 5.5, tempo: 7, intervals: 8.5 };
+const RUN_TYPE_TIER: Record<RunType, Intensity> = { recovery: 'low', easy: 'low', long: 'medium', tempo: 'high', intervals: 'high' };
+const TIER_RANK: Record<Intensity, number> = { low: 0, medium: 1, high: 2 };
+const strongerTier = (a: Intensity, b: Intensity): Intensity => (TIER_RANK[a] >= TIER_RANK[b] ? a : b);
+const hasHr = (r: RunEvent): boolean => r.avgHr != null && r.maxHr != null && r.maxHr > r.avgHr;
+
+/** Effective session-RPE for a run: the logged RPE if given, else derived from %HRmax, else the type default. */
+export function runEffectiveRpe(r: RunEvent): number {
+  if (r.rpe != null) return r.rpe;
+  if (hasHr(r)) {
+    // Map %HRmax onto the CR-10 scale: ~60%→3, 70%→5, 80%→7, 90%→8. Clamped to 1–10.
+    const pct = (r.avgHr! / r.maxHr!) * 100;
+    return Math.min(10, Math.max(1, Math.round((pct - 40) / 6)));
+  }
+  return RUN_DEFAULT_RPE[r.runType];
+}
+
+/** Intensity tier of a run from the strongest available signal: run type, %HRmax zone, and explicit RPE. */
+export function runTier(r: RunEvent): Intensity {
+  let tier = RUN_TYPE_TIER[r.runType];
+  if (hasHr(r)) {
+    const pct = r.avgHr! / r.maxHr!;
+    tier = strongerTier(tier, pct < 0.72 ? 'low' : pct < 0.82 ? 'medium' : 'high');
+  }
+  if (r.rpe != null) tier = strongerTier(tier, r.rpe <= 5 ? 'low' : r.rpe <= 7 ? 'medium' : 'high');
+  return tier;
+}
+
+export interface RunView {
+  id: string;
+  date: string;
+  runType: RunType;
+  durationMin: number;
+  /** Effective session-RPE used for load. */
+  rpe: number;
+  tier: Intensity;
+  distanceKm?: number;
+  avgHr?: number | null;
+  maxHr?: number | null;
+  elevationGainM?: number;
+  /** A hard or long run interferes with adjacent hard climbing/strength work. */
+  interferes: boolean;
+}
+
+/** Materialize logged runs into scored views. Deterministic ids (`run-<date>-<idx>`) match materialization
+ * and load so a run is never counted twice. Append-only, like adhoc sessions — each run is its own view. */
+export function runViews(events: PlanEvent[]): RunView[] {
+  const perDate = new Map<string, number>();
+  const out: RunView[] = [];
+  for (const e of events) {
+    if (e.kind !== 'run') continue;
+    const idx = perDate.get(e.date) ?? 0;
+    perDate.set(e.date, idx + 1);
+    const tier = runTier(e);
+    out.push({
+      id: `run-${e.date}-${idx}`,
+      date: e.date,
+      runType: e.runType,
+      durationMin: e.durationMin,
+      rpe: runEffectiveRpe(e),
+      tier,
+      distanceKm: e.distanceKm,
+      avgHr: e.avgHr,
+      maxHr: e.maxHr,
+      elevationGainM: e.elevationGainM,
+      // Peripheral fatigue from a long steady run interferes as much as a short hard one, so a long run
+      // trips the spacing rule even at a moderate tier.
+      interferes: tier === 'high' || e.durationMin >= 75,
+    });
+  }
+  return out;
+}
+
 /** Current version of each imported activity: reprocessing appends a superseding event, so the last one per externalId wins. */
 export function latestImports(events: PlanEvent[]): Extract<PlanEvent, { kind: 'imported-activity' }>[] {
   const byId = new Map<string, Extract<PlanEvent, { kind: 'imported-activity' }>>();
@@ -119,12 +203,12 @@ export function latestFeedback(events: PlanEvent[]): Map<string, Extract<PlanEve
   return m;
 }
 
-/** Dates the user actually trained: any completed session, an adhoc session, or an imported activity. */
+/** Dates the user actually trained: any completed session, an adhoc session, a logged run, or an imported activity. */
 export function trainedDates(events: PlanEvent[]): Set<string> {
   const last = latestFeedback(events);
   const out = new Set<string>();
   for (const fb of last.values()) if (fb.completed) out.add(fb.date);
-  for (const e of events) if (e.kind === 'adhoc-session') out.add(e.date);
+  for (const e of events) if (e.kind === 'adhoc-session' || e.kind === 'run') out.add(e.date);
   for (const e of latestImports(events)) out.add(e.date);
   return out;
 }
@@ -197,11 +281,23 @@ function computeLoad(events: PlanEvent[], sessions: Map<string, Session>, today:
   let acute = 0;
   let chronic = 0;
   const imported = importedMinutesByDate(events);
-  for (const e of latestFeedback(events).values()) {
+  const feedback = latestFeedback(events);
+  for (const e of feedback.values()) {
     if (!e.completed || e.rpe === null) continue;
     const s = sessions.get(e.sessionId);
     const load = e.rpe * (imported.get(e.date) ?? (s ? s.durationMin : 60));
     const age = daysBetween(e.date, today);
+    if (age >= 0 && age < 7) acute += load;
+    if (age >= 0 && age < 28) chronic += load;
+  }
+  // Runs carry their own session-RPE load. Skip a run only when its own feedback ALREADY contributed load
+  // above (completed with an RPE) — that lets a subjective RPE override the estimate without double-counting.
+  // A missed/incomplete feedback contributes nothing, so the run still happened and keeps its estimated load.
+  for (const r of runViews(events)) {
+    const fb = feedback.get(r.id);
+    if (fb && fb.completed && fb.rpe !== null) continue;
+    const load = r.rpe * r.durationMin;
+    const age = daysBetween(r.date, today);
     if (age >= 0 && age < 7) acute += load;
     if (age >= 0 && age < 28) chronic += load;
   }
@@ -399,6 +495,38 @@ export function generatePlan(state: UserState, today: string, internal?: { skipP
     });
   }
 
+  // Materialize logged runs as visible cards. They render like any session but are never auto-scheduled and
+  // never anchor the finger-spacing rule (running does not load fingers). Their intensity is the scored tier.
+  const runLabel: Record<RunType, string> = {
+    recovery: 'recovery run',
+    easy: 'easy run',
+    long: 'long run',
+    tempo: 'tempo run',
+    intervals: 'interval run',
+  };
+  for (const r of runViews(state.events)) {
+    const week = Math.max(0, Math.floor(daysBetween(start, r.date) / 7));
+    const bits = [`${r.durationMin} min`];
+    if (r.distanceKm != null) bits.push(`${r.distanceKm} km`);
+    if (r.avgHr != null) bits.push(`avg HR ${r.avgHr}`);
+    if (r.elevationGainM != null && r.elevationGainM > 0) bits.push(`↑ ${r.elevationGainM} m`);
+    const detail = bits.join(' · ');
+    const pace = r.distanceKm && r.distanceKm > 0 ? `${(r.durationMin / r.distanceKm).toFixed(1)} min/km` : undefined;
+    sessions.push({
+      id: r.id,
+      date: r.date,
+      type: 'run',
+      title: `Run — ${runLabel[r.runType]}`,
+      intensity: r.tier,
+      durationMin: r.durationMin,
+      focus: `Aerobic cross-training · ${detail}`,
+      exercises: [{ name: 'Run', detail, sets: pace }],
+      weekPhase: phaseForWeek(week),
+      warnings: [],
+      hints: [],
+    });
+  }
+
   const byId = new Map(sessions.map((s) => [s.id, s]));
 
   const applyMoves = () => {
@@ -499,7 +627,8 @@ export function generatePlan(state: UserState, today: string, internal?: { skipP
     if (!insertDate) return false;
 
     const movable = sessions
-      .filter((o) => daysBetween(today, o.date) >= 0 && !lastFeedback.has(o.id))
+      // Logged runs are historical facts, never reschedulable by the recovery pass.
+      .filter((o) => daysBetween(today, o.date) >= 0 && !lastFeedback.has(o.id) && o.type !== 'run')
       .sort((a, b) => a.date.localeCompare(b.date));
     const savedDates = new Map(movable.map((o) => [o.id, o.date]));
 
@@ -619,7 +748,8 @@ export function generatePlan(state: UserState, today: string, internal?: { skipP
       if (!spacingOk) continue;
 
       const budget = availability.minutesByWeekday[weekdayOf(date)];
-      const target = onDate.find((o) => o.type !== missedSession.type);
+      // Never overwrite a logged run with a recovered climbing session.
+      const target = onDate.find((o) => o.type !== missedSession.type && o.type !== 'run');
       if (target) {
         consumed.add(target.id);
         const replacedTitle = target.title;
@@ -671,12 +801,34 @@ export function generatePlan(state: UserState, today: string, internal?: { skipP
     s.exercises = t.exercises(s.weekPhase, cfg.assessment.maxBoulderGrade);
   }
 
+  // Concurrent-training interference: a hard or long run within a day of a hard climbing/strength session
+  // degrades both adaptations (AMPK/mTOR signaling conflict). Dial the neighboring upcoming hard session down
+  // and flag it. Running never loads fingers, so this only touches intensity spacing, never the finger rule.
+  // Runs last so sessions the recovery pass inserted, moved, or re-typed next to a run are dialed too.
+  for (const r of sessions.filter((s) => s.type === 'run')) {
+    const view = runViews(state.events).find((v) => v.id === r.id);
+    if (!view?.interferes) continue;
+    let dialed = false;
+    for (const s of sessions) {
+      if (s.type === 'run' || lastFeedback.has(s.id)) continue;
+      if (s.intensity !== 'high' || daysBetween(today, s.date) < 0) continue;
+      if (Math.abs(daysBetween(r.date, s.date)) <= 1) {
+        s.intensity = 'medium';
+        s.warnings.push(
+          `Hard/long run on ${r.date} within a day — concurrent-training interference; keep this sub-maximal or move it a day.`,
+        );
+        dialed = true;
+      }
+    }
+    if (dialed) r.hints.push('Nearby hard climbing was kept sub-maximal to limit interference with this run.');
+  }
+
   const load = computeLoad(state.events, byId, today, start);
   if (load.capped) {
     notices.push('Training load rose quickly (acute:chronic > 1.3). High-intensity sessions this week are capped at moderate effort.');
     for (const s of sessions) {
       const age = daysBetween(today, s.date);
-      if (age >= 0 && age < 7 && s.intensity === 'high') {
+      if (s.type !== 'run' && age >= 0 && age < 7 && s.intensity === 'high') {
         s.intensity = 'medium';
         s.warnings.push('Intensity reduced this week to manage load spike.');
       }
@@ -685,7 +837,7 @@ export function generatePlan(state: UserState, today: string, internal?: { skipP
 
   if (learned.todayReadiness === 1) {
     for (const s of sessions) {
-      if (s.date === today && s.intensity === 'high') {
+      if (s.type !== 'run' && s.date === today && s.intensity === 'high') {
         s.intensity = 'medium';
         s.warnings.push('You reported feeling heavy today: keep this session sub-maximal.');
       }
@@ -702,6 +854,7 @@ export function generatePlan(state: UserState, today: string, internal?: { skipP
     const s = byId.get(e.sessionId);
     if (!s) continue;
     const doneType = e.actualType ?? s.type;
+    if (doneType === 'run') continue; // runs are scored on their own scale — no climbing-style progression hints
     const arr = rpeByType.get(doneType) ?? [];
     arr.push(e.rpe);
     rpeByType.set(doneType, arr);
@@ -750,9 +903,14 @@ export function generatePlan(state: UserState, today: string, internal?: { skipP
     }
   }
 
-  // Adhoc sessions are always visible regardless of the window — retro-logged sessions may be months back.
+  // Adhoc sessions and logged runs are always visible regardless of the window — retro-logged activity may be months back.
   const visible = sessions
-    .filter((s) => (daysBetween(today, s.date) >= -28 && daysBetween(today, s.date) < HORIZON_DAYS) || s.id.startsWith('adhoc-'))
+    .filter(
+      (s) =>
+        (daysBetween(today, s.date) >= -28 && daysBetween(today, s.date) < HORIZON_DAYS) ||
+        s.id.startsWith('adhoc-') ||
+        s.id.startsWith('run-'),
+    )
     .sort((a, b) => a.date.localeCompare(b.date));
 
   return {
@@ -775,7 +933,8 @@ export function generatePlan(state: UserState, today: string, internal?: { skipP
  */
 export function recommendSessionFor(state: UserState, today: string, date: string): SessionType {
   const plan = generatePlan(state, today);
-  const existing = plan.sessions.find((s) => s.date === date && !s.id.startsWith('adhoc-'));
+  // A logged run on the date is not a planned climbing session — don't echo it back as the recommendation.
+  const existing = plan.sessions.find((s) => s.date === date && !s.id.startsWith('adhoc-') && s.type !== 'run');
   if (existing) return existing.type;
 
   const { config } = state;

@@ -1,4 +1,4 @@
-import { addDays, daysBetween, generatePlan, importedMinutesByDate, latestImports } from './generate.js';
+import { addDays, daysBetween, generatePlan, importedMinutesByDate, latestImports, runViews } from './generate.js';
 import { TEMPLATES } from './templates.js';
 import type { PlanEvent, UserState } from './types.js';
 
@@ -45,6 +45,8 @@ export function computeMetrics(state: UserState, today: string): PlanMetrics {
   }
 
   const imported = importedMinutesByDate(state.events);
+  // Runs contribute their session-RPE load too; skip any run with its own feedback (counted below) to avoid double-count.
+  const runs = runViews(state.events);
   const weeklyLoads: { weekStart: string; load: number }[] = [];
   for (let i = 3; i >= 0; i--) {
     const weekStart = addDays(today, -7 * (i + 1) + 1);
@@ -55,6 +57,15 @@ export function computeMetrics(state: UserState, today: string): PlanMetrics {
       if (offset < 0 || offset > 6) continue;
       const s = byId.get(fb.sessionId);
       load += fb.rpe * (imported.get(fb.date) ?? (s ? s.durationMin : 60));
+    }
+    for (const r of runs) {
+      // Skip a run only when its own feedback already contributed its load below; a missed/incomplete
+      // feedback contributes nothing, so the run keeps its estimated load.
+      const rfb = lastFeedback.get(r.id);
+      if (rfb && rfb.completed && rfb.rpe !== null) continue;
+      const offset = daysBetween(weekStart, r.date);
+      if (offset < 0 || offset > 6) continue;
+      load += r.rpe * r.durationMin;
     }
     weeklyLoads.push({ weekStart, load });
   }

@@ -254,6 +254,23 @@ export const TEMPLATES: Record<SessionType, Template> = {
       { name: 'Hip mobility', detail: 'Deep squat holds, hip flexor and hamstring work', sets: '10 min' },
     ],
   },
+  run: {
+    // Never auto-scheduled — a run only ever enters the plan through a user-logged `run` event, which overrides
+    // this template's title/intensity/duration with the actual run. This entry exists so run sessions render and
+    // so the info panel can explain the training science. minGrade/needs are permissive by design.
+    type: 'run',
+    title: 'Run',
+    intensity: 'medium',
+    baseDurationMin: 40,
+    focus: 'Aerobic cross-training',
+    overview:
+      'A run logged as cross-training. Running builds central aerobic fitness and can aid recovery, but it also adds systemic training load: hard or long runs within a day of hard climbing or strength work blunt those adaptations (the concurrent-training interference effect), so the plan spaces them and counts the run toward your acute:chronic load. Easy runs are low-cost and sit happily on rest days. Running places no load on the fingers, so it is exempt from the 48/72h finger-spacing rule. Effort is scored by session-RPE (your RPE × minutes); if you sync heart rate, intensity is read from your %HRmax instead of the label.',
+    needs: {},
+    minGrade: 0,
+    minExperienceYears: 0,
+    fingerLoad: false,
+    exercises: () => [{ name: 'Run', detail: 'Logged as cross-training.' }],
+  },
   rest: {
     type: 'rest',
     title: 'Rest day',

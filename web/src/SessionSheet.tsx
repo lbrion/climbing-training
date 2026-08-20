@@ -4,7 +4,7 @@ import { api, type AppState, type FeedbackEvent, type ImportedActivity } from '.
 import { HrChart } from './HrChart.js';
 
 const SITES: InjurySite[] = ['finger', 'wrist', 'elbow', 'shoulder', 'back', 'knee'];
-const LOGGABLE_TYPES = (Object.keys(TEMPLATES) as SessionType[]).filter((t) => t !== 'rest');
+const LOGGABLE_TYPES = (Object.keys(TEMPLATES) as SessionType[]).filter((t) => t !== 'rest' && t !== 'run');
 
 export function SessionSheet({
   session,
@@ -55,6 +55,8 @@ export function SessionSheet({
 
   // Adhoc sessions were added by the user, not scheduled, so there is no "planned" session to deviate from.
   const isAdhoc = session.id.startsWith('adhoc-');
+  // A run is a logged cross-training record, not a climbing session to check off or move.
+  const isRun = session.type === 'run';
 
   const onTouchStart = (e: React.TouchEvent) => {
     startY.current = sheetRef.current && sheetRef.current.scrollTop <= 0 ? e.touches[0].clientY : null;
@@ -211,84 +213,91 @@ export function SessionSheet({
           </div>
         )}
 
-        <h3>{feedback ? 'Your log' : 'Log this session'}</h3>
-        {feedback && <p className="hint">Logged {feedback.completed ? 'as completed' : 'as missed'} — edit anything and save to update.</p>}
-        <div className="row">
-          <button className={completed === true ? 'seg on' : 'seg'} onClick={() => setCompleted(true)}>
-            Completed
-          </button>
-          <button className={completed === false ? 'seg on' : 'seg'} onClick={() => setCompleted(false)}>
-            Missed
-          </button>
-        </div>
-        {completed && (
-          <label>
-            {isAdhoc ? 'Session type' : 'What did you actually do?'}
-            <select value={actualType} onChange={(e) => setActualType(e.target.value as SessionType | '')}>
-              <option value="">{isAdhoc ? session.title : `As planned — ${session.title}`}</option>
-              {LOGGABLE_TYPES.filter((t) => t !== session.type).map((t) => (
-                <option key={t} value={t}>
-                  {TEMPLATES[t].title}
-                </option>
-              ))}
-            </select>
-          </label>
-        )}
-        {completed && (
-          <label>
-            Effort (RPE {rpe})
-            <input type="range" min={1} max={10} value={rpe} onChange={(e) => setRpe(Number(e.target.value))} />
-          </label>
-        )}
-        {completed && (
-          <label>
-            Hardest send today (optional)
-            <select value={topGrade} onChange={(e) => setTopGrade(e.target.value === '' ? '' : +e.target.value)}>
-              <option value="">Not tracked</option>
-              {Array.from({ length: 18 }, (_, i) => (
-                <option key={i} value={i}>
-                  V{i}
-                </option>
-              ))}
-            </select>
-          </label>
-        )}
-        <label>
-          Any pain?
-          <select value={painSite} onChange={(e) => setPainSite(e.target.value as InjurySite | '')}>
-            <option value="">No pain</option>
-            {SITES.map((s) => (
-              <option key={s} value={s}>
-                {s}
-              </option>
-            ))}
-          </select>
-        </label>
-        {painSite && (
-          <label>
-            Severity
-            <select value={painSeverity} onChange={(e) => setPainSeverity(Number(e.target.value) as 1 | 2 | 3)}>
-              <option value={1}>1 — mild, went away</option>
-              <option value={2}>2 — lingered after session</option>
-              <option value={3}>3 — sharp / limits climbing</option>
-            </select>
-          </label>
-        )}
-        <label>
-          Notes (optional)
-          <textarea rows={3} placeholder="Conditions, sends, how it felt…" value={notes} onChange={(e) => setNotes(e.target.value)} />
-        </label>
-        <button className="primary" disabled={busy || completed === null} onClick={submitFeedback}>
-          {completed === null ? 'Completed or missed?' : feedback ? 'Update feedback' : 'Save feedback'}
-        </button>
+        {isRun && <p className="hint">Logged as cross-training. It counts toward your training load and spacing — no check-off needed.</p>}
+        {!isRun && (
+          <>
+            <h3>{feedback ? 'Your log' : 'Log this session'}</h3>
+            {feedback && (
+              <p className="hint">Logged {feedback.completed ? 'as completed' : 'as missed'} — edit anything and save to update.</p>
+            )}
+            <div className="row">
+              <button className={completed === true ? 'seg on' : 'seg'} onClick={() => setCompleted(true)}>
+                Completed
+              </button>
+              <button className={completed === false ? 'seg on' : 'seg'} onClick={() => setCompleted(false)}>
+                Missed
+              </button>
+            </div>
+            {completed && (
+              <label>
+                {isAdhoc ? 'Session type' : 'What did you actually do?'}
+                <select value={actualType} onChange={(e) => setActualType(e.target.value as SessionType | '')}>
+                  <option value="">{isAdhoc ? session.title : `As planned — ${session.title}`}</option>
+                  {LOGGABLE_TYPES.filter((t) => t !== session.type).map((t) => (
+                    <option key={t} value={t}>
+                      {TEMPLATES[t].title}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+            {completed && (
+              <label>
+                Effort (RPE {rpe})
+                <input type="range" min={1} max={10} value={rpe} onChange={(e) => setRpe(Number(e.target.value))} />
+              </label>
+            )}
+            {completed && (
+              <label>
+                Hardest send today (optional)
+                <select value={topGrade} onChange={(e) => setTopGrade(e.target.value === '' ? '' : +e.target.value)}>
+                  <option value="">Not tracked</option>
+                  {Array.from({ length: 18 }, (_, i) => (
+                    <option key={i} value={i}>
+                      V{i}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+            <label>
+              Any pain?
+              <select value={painSite} onChange={(e) => setPainSite(e.target.value as InjurySite | '')}>
+                <option value="">No pain</option>
+                {SITES.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {painSite && (
+              <label>
+                Severity
+                <select value={painSeverity} onChange={(e) => setPainSeverity(Number(e.target.value) as 1 | 2 | 3)}>
+                  <option value={1}>1 — mild, went away</option>
+                  <option value={2}>2 — lingered after session</option>
+                  <option value={3}>3 — sharp / limits climbing</option>
+                </select>
+              </label>
+            )}
+            <label>
+              Notes (optional)
+              <textarea rows={3} placeholder="Conditions, sends, how it felt…" value={notes} onChange={(e) => setNotes(e.target.value)} />
+            </label>
+            <button className="primary" disabled={busy || completed === null} onClick={submitFeedback}>
+              {completed === null ? 'Completed or missed?' : feedback ? 'Update feedback' : 'Save feedback'}
+            </button>
 
-        <h3>Move session</h3>
-        <div className="row">
-          <input type="date" value={moveTo} onChange={(e) => setMoveTo(e.target.value)} />
-          <button disabled={busy || moveTo === session.date} onClick={submitMove}>
-            Move
-          </button>
-        </div>
+            <h3>Move session</h3>
+            <div className="row">
+              <input type="date" value={moveTo} onChange={(e) => setMoveTo(e.target.value)} />
+              <button disabled={busy || moveTo === session.date} onClick={submitMove}>
+                Move
+              </button>
+            </div>
+          </>
+        )}
         <button className="ghost" onClick={onClose}>
           Close
         </button>

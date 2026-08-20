@@ -689,4 +689,146 @@ describe('generatePlan', () => {
     expect(plan.goal).toEqual({ type: 'skill', skill: 'endurance' });
     expect(plan.availability).toEqual({ minutesByWeekday: [0, 60, 0, 60, 0, 60, 0] });
   });
+
+  const everyday: UserState = {
+    ...base,
+    config: { ...base.config, availability: { minutesByWeekday: [120, 120, 120, 120, 120, 120, 120] } },
+  };
+
+  it('scores a logged run with session-RPE and folds it into the training load', () => {
+    // Easy run, explicit RPE 6, 50 min → 300 AU of load in the acute window; no other completed sessions.
+    const withRun = generatePlan(
+      { ...base, events: [{ kind: 'run', date: '2026-08-18', runType: 'easy', durationMin: 50, rpe: 6 }] },
+      '2026-08-20',
+    );
+    expect(withRun.loadStatus.acute7d).toBe(300);
+    const runSession = withRun.sessions.find((s) => s.type === 'run');
+    expect(runSession).toBeDefined();
+    expect(runSession!.id).toBe('run-2026-08-18-0');
+    // RPE 6 on an otherwise-easy run reads as moderate effort.
+    expect(runSession!.intensity).toBe('medium');
+  });
+
+  it('derives run effort and intensity from heart rate when the label understates it', () => {
+    // "Easy" run but avg HR 175 / max 190 ≈ 92% HRmax → high tier, effort ~RPE 9 → 9 × 40 = 360 AU.
+    const withHr = generatePlan(
+      { ...base, events: [{ kind: 'run', date: '2026-08-18', runType: 'easy', durationMin: 40, avgHr: 175, maxHr: 190 }] },
+      '2026-08-20',
+    );
+    const run = withHr.sessions.find((s) => s.type === 'run')!;
+    expect(run.intensity).toBe('high');
+    expect(withHr.loadStatus.acute7d).toBe(9 * 40);
+  });
+
+  it('spaces a hard run from adjacent hard climbing (concurrent-training interference)', () => {
+    const plan0 = generatePlan(everyday, '2026-08-03');
+    const targetHigh = plan0.sessions.find((s) => s.intensity === 'high' && s.date > '2026-08-03')!;
+    const runDate = addDays(targetHigh.date, -1);
+    const withRun = generatePlan(
+      { ...everyday, events: [{ kind: 'run', date: runDate, runType: 'intervals', durationMin: 45 }] },
+      '2026-08-03',
+    );
+    const after = withRun.sessions.find((s) => s.id === targetHigh.id)!;
+    expect(after.intensity).toBe('medium');
+    expect(after.warnings.some((w) => /interference/i.test(w))).toBe(true);
+  });
+
+  it('does not let an easy short run interfere with adjacent hard climbing', () => {
+    const plan0 = generatePlan(everyday, '2026-08-03');
+    const targetHigh = plan0.sessions.find((s) => s.intensity === 'high' && s.date > '2026-08-03')!;
+    const runDate = addDays(targetHigh.date, -1);
+    const withEasy = generatePlan(
+      { ...everyday, events: [{ kind: 'run', date: runDate, runType: 'easy', durationMin: 30 }] },
+      '2026-08-03',
+    );
+    expect(withEasy.sessions.find((s) => s.id === targetHigh.id)!.intensity).toBe('high');
+  });
+
+  it('credits a logged run as a trained day so it cancels a weekly shortfall', () => {
+    const plan0 = generatePlan(base, '2026-08-10');
+    const wk0 = plan0.sessions.filter((s) => s.date >= '2026-08-03' && s.date < '2026-08-10');
+    const missOne = wk0[1];
+    const events: UserState['events'] = wk0.map((s) =>
+      s.id === missOne.id
+        ? { kind: 'feedback', sessionId: s.id, date: s.date, completed: false, rpe: null, pain: null }
+        : { kind: 'feedback', sessionId: s.id, date: s.date, completed: true, rpe: 6, pain: null },
+    );
+    expect(generatePlan({ ...base, events }, '2026-08-10').adherence.netMisses).toBe(1);
+    // A run on the rest day that week credits a trained day → shortfall cancelled.
+    const withRun = generatePlan(
+      { ...base, events: [...events, { kind: 'run', date: '2026-08-04', runType: 'easy', durationMin: 40 }] },
+      '2026-08-10',
+    );
+    expect(withRun.adherence.netMisses).toBe(0);
+  });
+
+  it('never anchors the finger-spacing rule on a run (running does not load fingers)', () => {
+    const baseline = generatePlan(everyday, '2026-08-03');
+    const withRun = generatePlan(
+      { ...everyday, events: [{ kind: 'run', date: '2026-08-04', runType: 'intervals', durationMin: 50 }] },
+      '2026-08-03',
+    );
+    const fingerDates = (p: ReturnType<typeof generatePlan>) =>
+      p.sessions
+        .filter((s) => TEMPLATES[s.type].fingerLoad && s.type !== 'run')
+        .map((s) => s.date)
+        .sort();
+    // A hard run does not reshuffle hard finger work — it only affects intensity, never finger spacing.
+    expect(fingerDates(withRun)).toEqual(fingerDates(baseline));
+    expect(TEMPLATES.run.fingerLoad).toBe(false);
+  });
+
+  it('lets a subjective RPE on a run override the estimated load without double-counting', () => {
+    const run = { kind: 'run' as const, date: '2026-08-18', runType: 'intervals' as const, durationMin: 40 };
+    // Default intervals effort is RPE 8.5 → 340 AU.
+    const estimated = generatePlan({ ...base, events: [run] }, '2026-08-20');
+    expect(estimated.loadStatus.acute7d).toBe(8.5 * 40);
+    // Logging feedback on the run session supersedes the estimate (RPE 5 → 200 AU), counted once.
+    const corrected = generatePlan(
+      {
+        ...base,
+        events: [run, { kind: 'feedback', sessionId: 'run-2026-08-18-0', date: '2026-08-18', completed: true, rpe: 5, pain: null }],
+      },
+      '2026-08-20',
+    );
+    expect(corrected.loadStatus.acute7d).toBe(5 * 40);
+  });
+
+  it('keeps a run’s estimated load when a non-completed feedback exists for it', () => {
+    // A "missed" feedback contributes no load, so it must not erase the run's own estimated load.
+    const events: UserState['events'] = [
+      { kind: 'run', date: '2026-08-18', runType: 'intervals', durationMin: 40 }, // default RPE 8.5 → 340 AU
+      { kind: 'feedback', sessionId: 'run-2026-08-18-0', date: '2026-08-18', completed: false, rpe: null, pain: null },
+    ];
+    const plan = generatePlan({ ...base, events }, '2026-08-20');
+    expect(plan.loadStatus.acute7d).toBe(8.5 * 40);
+    expect(computeMetrics({ ...base, events }, '2026-08-20').weeklyLoads.at(-1)!.load).toBe(8.5 * 40);
+  });
+
+  it('dials a recovery-inserted hard session that lands next to a hard run', () => {
+    const plan0 = generatePlan(everyday, '2026-08-03');
+    const limit = plan0.sessions.find((s) => s.date === '2026-08-03' && s.type === 'limit-boulder')!;
+    const events: UserState['events'] = [
+      { kind: 'feedback', sessionId: limit.id, date: limit.date, completed: false, rpe: null, pain: null },
+      { kind: 'run', date: '2026-08-05', runType: 'long', durationMin: 90 }, // interferes (≥75 min)
+    ];
+    const plan = generatePlan({ ...everyday, events }, '2026-08-04');
+    const recovered = plan.sessions.find((s) => s.id === `${limit.id}-r`)!;
+    expect(recovered).toBeDefined();
+    // The recovered session lands adjacent to the run and is dialed by the interference pass (which now runs last).
+    expect(Math.abs(daysBetween('2026-08-05', recovered.date))).toBeLessThanOrEqual(1);
+    expect(recovered.intensity).toBe('medium');
+    expect(recovered.warnings.some((w) => /interference/i.test(w))).toBe(true);
+  });
+
+  it('never mutates a logged run card via the readiness or load-cap passes', () => {
+    const events: UserState['events'] = [
+      { kind: 'run', date: '2026-08-12', runType: 'intervals', durationMin: 45 }, // high tier, dated today
+      { kind: 'readiness', date: '2026-08-12', level: 1 }, // "heavy" — dials climbing, must leave the run alone
+    ];
+    const plan = generatePlan({ ...base, events }, '2026-08-12');
+    const run = plan.sessions.find((s) => s.type === 'run')!;
+    expect(run.intensity).toBe('high');
+    expect(run.warnings.some((w) => /sub-maximal|load spike/i.test(w))).toBe(false);
+  });
 });

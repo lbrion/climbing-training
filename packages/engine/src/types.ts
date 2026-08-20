@@ -62,7 +62,11 @@ export type SessionType =
   | 'power-endurance'
   | 'aerobic-capacity'
   | 'mobility-prehab'
+  | 'run'
   | 'rest';
+
+/** How a logged run was run — sets its default effort and interference profile (see generate.ts). */
+export type RunType = 'recovery' | 'easy' | 'long' | 'tempo' | 'intervals';
 
 export type Intensity = 'high' | 'medium' | 'low';
 
@@ -119,6 +123,22 @@ export type PlanEvent =
       date: string;
       type: SessionType;
       durationMin?: number;
+    }
+  | {
+      /** A run the user logged as cross-training. Scored by session-RPE (RPE×duration) and folded into the training
+       * load; hard/long runs get spaced from hard climbing (concurrent-training interference). See generate.ts. */
+      kind: 'run';
+      date: string;
+      runType: RunType;
+      /** Moving time in minutes — the multiplier in the session-RPE load. Required. */
+      durationMin: number;
+      /** Subjective effort (CR-10, 1–10). When absent, effort is derived from HR or the run type. */
+      rpe?: number | null;
+      distanceKm?: number;
+      avgHr?: number | null;
+      /** Enables a %HRmax intensity zone when paired with avgHr. */
+      maxHr?: number | null;
+      elevationGainM?: number;
     }
   | {
       /** A workout imported from a watch/FIT file (e.g. COROS, Garmin). Objective record alongside subjective feedback. */

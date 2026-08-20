@@ -145,6 +145,17 @@ const eventSchema = z.discriminatedUnion('kind', [
     ]),
     durationMin: z.number().min(5).max(600).optional(),
   }),
+  z.object({
+    kind: z.literal('run'),
+    date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    runType: z.enum(['recovery', 'easy', 'long', 'tempo', 'intervals']),
+    durationMin: z.number().min(5).max(600),
+    rpe: z.number().min(1).max(10).nullable().optional(),
+    distanceKm: z.number().min(0).max(300).optional(),
+    avgHr: z.number().min(20).max(250).nullable().optional(),
+    maxHr: z.number().min(20).max(250).nullable().optional(),
+    elevationGainM: z.number().min(0).max(10000).optional(),
+  }),
 ]);
 
 const equipmentSchema = z.object({

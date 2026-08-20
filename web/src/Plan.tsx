@@ -3,6 +3,7 @@ import { TEMPLATES, type Session, type SessionType } from '@climb/engine';
 import { api, type AppState } from './api.js';
 import { HistoryView } from './History.js';
 import { PlanDaySheet } from './PlanDaySheet.js';
+import { RunSheet } from './RunSheet.js';
 
 const PHASE_LABEL: Record<string, string> = {
   base: 'Base',
@@ -39,6 +40,7 @@ function SessionCard({
   onOpen: (s: Session) => void;
   onMiss: (s: Session) => void;
 }) {
+  const isRun = s.type === 'run';
   return (
     <div className={`card intensity-${s.intensity}`} onClick={() => onOpen(s)}>
       <div className="card-top">
@@ -48,11 +50,12 @@ function SessionCard({
       <div className="card-sub">
         <span className={`tag tag-${s.intensity}`}>{s.intensity}</span>
         <span className="mono">{s.durationMin} MIN</span>
-        {done === true && <span className="mono done">✓ DONE</span>}
-        {done === false && <span className="mono missed">MISSED</span>}
+        {isRun && <span className="mono done">🏃 LOGGED</span>}
+        {!isRun && done === true && <span className="mono done">✓ DONE</span>}
+        {!isRun && done === false && <span className="mono missed">MISSED</span>}
         {s.hints.length > 0 && <span className="mono hint-flag">TIP</span>}
       </div>
-      {done === null && (
+      {!isRun && done === null && (
         <button
           className="quick-miss"
           onClick={(e) => {
@@ -76,11 +79,13 @@ function RestCard({
   date,
   onAdd,
   onPlan,
+  onRun,
   past,
 }: {
   date: string;
   onAdd: (date: string, type: SessionType) => Promise<void>;
   onPlan: (date: string) => void;
+  onRun: (date: string) => void;
   past?: boolean;
 }) {
   const [picking, setPicking] = useState(false);
@@ -101,6 +106,9 @@ function RestCard({
           <button className="quick-miss" onClick={() => setPicking(true)}>
             {past ? '＋ Add a session you did' : 'Log one I did'}
           </button>
+          <button className="quick-miss" onClick={() => onRun(date)}>
+            🏃 Log a run
+          </button>
         </div>
       ) : (
         <select
@@ -118,7 +126,7 @@ function RestCard({
             What did you do?
           </option>
           {(Object.keys(TEMPLATES) as SessionType[])
-            .filter((t) => t !== 'rest')
+            .filter((t) => t !== 'rest' && t !== 'run')
             .map((t) => (
               <option key={t} value={t}>
                 {TEMPLATES[t].title}
@@ -157,6 +165,7 @@ export function PlanView({
   const [selected, setSelected] = useState(today);
   const [month, setMonth] = useState(today.slice(0, 7));
   const [planningDate, setPlanningDate] = useState<string | null>(null);
+  const [runningDate, setRunningDate] = useState<string | null>(null);
 
   const setViewPersist = (v: View) => {
     setView(v);
@@ -267,11 +276,18 @@ export function PlanView({
                 <div className="day-body">
                   <h2 className={date === today ? 'today' : ''}>{date === today ? `Today · ${fmtDay(date)}` : fmtDay(date)}</h2>
                   {daySessions.length === 0 ? (
-                    <RestCard date={date} onAdd={addSession} onPlan={setPlanningDate} />
+                    <RestCard date={date} onAdd={addSession} onPlan={setPlanningDate} onRun={setRunningDate} />
                   ) : (
-                    daySessions.map((s) => (
-                      <SessionCard key={s.id} s={s} done={doneById.get(s.id) ?? null} onOpen={onOpen} onMiss={quickMiss} />
-                    ))
+                    <>
+                      {daySessions.map((s) => (
+                        <SessionCard key={s.id} s={s} done={doneById.get(s.id) ?? null} onOpen={onOpen} onMiss={quickMiss} />
+                      ))}
+                      {!daySessions.some((s) => s.type === 'run') && (
+                        <button className="quick-miss add-run" onClick={() => setRunningDate(date)}>
+                          🏃 Log a run
+                        </button>
+                      )}
+                    </>
                   )}
                 </div>
               </section>
@@ -330,11 +346,18 @@ export function PlanView({
           <section>
             <h2 className={selected === today ? 'today' : ''}>{selected === today ? `Today · ${fmtDay(selected)}` : fmtDay(selected)}</h2>
             {sessionsOn(selected).length === 0 ? (
-              <RestCard date={selected} onAdd={addSession} onPlan={setPlanningDate} past={selected < today} />
+              <RestCard date={selected} onAdd={addSession} onPlan={setPlanningDate} onRun={setRunningDate} past={selected < today} />
             ) : (
-              sessionsOn(selected).map((s) => (
-                <SessionCard key={s.id} s={s} done={doneById.get(s.id) ?? null} onOpen={onOpen} onMiss={quickMiss} />
-              ))
+              <>
+                {sessionsOn(selected).map((s) => (
+                  <SessionCard key={s.id} s={s} done={doneById.get(s.id) ?? null} onOpen={onOpen} onMiss={quickMiss} />
+                ))}
+                {!sessionsOn(selected).some((s) => s.type === 'run') && (
+                  <button className="quick-miss add-run" onClick={() => setRunningDate(selected)}>
+                    🏃 Log a run
+                  </button>
+                )}
+              </>
             )}
           </section>
         </>
@@ -347,6 +370,16 @@ export function PlanView({
           onKept={(next) => {
             onUpdate(next);
             setPlanningDate(null);
+          }}
+        />
+      )}
+      {runningDate && (
+        <RunSheet
+          date={runningDate}
+          onClose={() => setRunningDate(null)}
+          onLogged={(next) => {
+            onUpdate(next);
+            setRunningDate(null);
           }}
         />
       )}

@@ -368,6 +368,16 @@ h3 {
   flex-wrap: wrap;
   gap: 8px;
 }
+/* "Log a run" affordance under a day's sessions — a hair mintier than a plain quick action. */
+.quick-miss.add-run {
+  color: var(--mint);
+  border-color: rgba(62, 230, 168, 0.35);
+}
+/* Two HR fields share the row evenly. */
+.sheet .row > label {
+  flex: 1;
+  margin: 8px 0 0;
+}
 .travel-window {
   padding: 8px 0;
   border-bottom: 1px solid var(--line);

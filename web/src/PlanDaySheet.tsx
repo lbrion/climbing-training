@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { TEMPLATES, type Plan, type Session, type SessionType } from '@climb/engine';
 import { api, type AppState } from './api.js';
 
-const LOGGABLE = (Object.keys(TEMPLATES) as SessionType[]).filter((t) => t !== 'rest');
+// Runs aren't planner-recommendable sessions — they're logged via the run sheet.
+const LOGGABLE = (Object.keys(TEMPLATES) as SessionType[]).filter((t) => t !== 'rest' && t !== 'run');
 
 function fmtDay(iso: string): string {
   return new Date(iso + 'T00:00:00').toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
