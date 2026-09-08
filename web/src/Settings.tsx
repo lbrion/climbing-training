@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import type { Config, Equipment, Goal, Plan, TravelWindow } from '@climb/engine';
+import type { Config, Equipment, Goal, Plan, TravelWindow, WeekStartsOn } from '@climb/engine';
 import { api, localToday, type AppState, type FitImportReport } from './api.js';
 
 const EQUIP_KEYS: (keyof Equipment)[] = ['climbingGym', 'hangboard', 'boardWall', 'weights', 'pullupBar'];
@@ -9,7 +9,25 @@ const equipList = (e: Equipment) =>
     .map(equipLabel)
     .join(', ') || 'bodyweight only';
 
-const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+/** Labels + Mon=0 index into minutesByWeekday, ordered for display given weekStartsOn. */
+const WEEKDAYS_MON = [
+  { label: 'Mon', idx: 0 },
+  { label: 'Tue', idx: 1 },
+  { label: 'Wed', idx: 2 },
+  { label: 'Thu', idx: 3 },
+  { label: 'Fri', idx: 4 },
+  { label: 'Sat', idx: 5 },
+  { label: 'Sun', idx: 6 },
+] as const;
+const WEEKDAYS_SUN = [
+  { label: 'Sun', idx: 6 },
+  { label: 'Mon', idx: 0 },
+  { label: 'Tue', idx: 1 },
+  { label: 'Wed', idx: 2 },
+  { label: 'Thu', idx: 3 },
+  { label: 'Fri', idx: 4 },
+  { label: 'Sat', idx: 5 },
+] as const;
 const SKILLS = ['overhang', 'slab', 'dynamic', 'crimps', 'compression', 'endurance'] as const;
 
 export function Settings({
@@ -30,6 +48,7 @@ export function Settings({
   const [minutes, setMinutes] = useState<Config['availability']['minutesByWeekday']>(plan.availability.minutesByWeekday);
   const [equipment, setEquipment] = useState<Config['equipment']>(config.equipment);
   const [travel, setTravel] = useState<TravelWindow[]>(config.travel ?? []);
+  const [weekStartsOn, setWeekStartsOn] = useState<WeekStartsOn>(config.weekStartsOn ?? 'sunday');
   const [draft, setDraft] = useState<TravelWindow>({
     from: localToday(),
     to: localToday(),
@@ -40,6 +59,7 @@ export function Settings({
   const [error, setError] = useState<string | null>(null);
   const [imported, setImported] = useState<FitImportReport | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const weekdayRows = weekStartsOn === 'sunday' ? WEEKDAYS_SUN : WEEKDAYS_MON;
 
   const uploadFit = async (file: File) => {
     setBusy(true);
@@ -60,6 +80,7 @@ export function Settings({
   const minutesDirty = JSON.stringify(minutes) !== JSON.stringify(plan.availability.minutesByWeekday);
   const equipmentDirty = JSON.stringify(equipment) !== JSON.stringify(config.equipment);
   const travelDirty = JSON.stringify(travel) !== JSON.stringify(config.travel ?? []);
+  const weekStartsOnDirty = weekStartsOn !== (config.weekStartsOn ?? 'sunday');
   const addTrip = () => {
     if (draft.from > draft.to) return;
     setTravel([...travel, draft].sort((a, b) => a.from.localeCompare(b.from)));
@@ -134,20 +155,40 @@ export function Settings({
       </section>
 
       <section>
+        <h2>Calendar</h2>
+        <p className="hint">First day of the week in the month view and availability list.</p>
+        <div className="row">
+          <button className={weekStartsOn === 'sunday' ? 'seg on' : 'seg'} onClick={() => setWeekStartsOn('sunday')}>
+            Sunday
+          </button>
+          <button className={weekStartsOn === 'monday' ? 'seg on' : 'seg'} onClick={() => setWeekStartsOn('monday')}>
+            Monday
+          </button>
+        </div>
+        <button
+          className="primary"
+          disabled={busy || !weekStartsOnDirty}
+          onClick={() => save('calendar', () => api.setup({ ...config, weekStartsOn }))}
+        >
+          {saved === 'calendar' && !weekStartsOnDirty ? 'Saved ✓' : 'Save calendar'}
+        </button>
+      </section>
+
+      <section>
         <h2>Weekly availability</h2>
         <p className="hint">Minutes you can train each day. 0 means rest day.</p>
-        {WEEKDAYS.map((d, i) => (
-          <label key={d} className="dayrow">
-            {d}
+        {weekdayRows.map(({ label, idx }) => (
+          <label key={label} className="dayrow">
+            {label}
             <input
               type="number"
               min={0}
               max={300}
               step={15}
-              value={minutes[i]}
+              value={minutes[idx]}
               onChange={(e) => {
                 const next = [...minutes] as Config['availability']['minutesByWeekday'];
-                next[i] = +e.target.value;
+                next[idx] = +e.target.value;
                 setMinutes(next);
               }}
             />
