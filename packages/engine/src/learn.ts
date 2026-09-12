@@ -1,12 +1,18 @@
 import { daysBetween } from './generate.js';
 import type { PlanEvent } from './types.js';
 
+export type FingerGapReason = 'recent-pain' | 'high-rpe' | 'heavy-days' | null;
+export type CapReason = 'misses' | 'clean-block' | null;
+
 export interface LearnedProfile {
   fingerGapDays: 2 | 3;
   capDelta: -1 | 0 | 1;
   todayReadiness: 1 | 2 | 3 | null;
   baselineRpe: number | null;
-  rationale: string[];
+  /** Why the finger gap widened; null when the default 48h gap applies. */
+  fingerGapReason: FingerGapReason;
+  /** Why the weekly cap moved; null when unchanged. */
+  capReason: CapReason;
 }
 
 function median(xs: number[]): number {
@@ -19,8 +25,6 @@ function median(xs: number[]): number {
  *   moved/substituted/adhoc/imported sessions). Passed in from generatePlan's adherence pass.
  */
 export function learnProfile(events: PlanEvent[], today: string, netMisses: number): LearnedProfile {
-  const rationale: string[] = [];
-
   const feedback = events.filter(
     (e): e is Extract<PlanEvent, { kind: 'feedback' }> => e.kind === 'feedback' && daysBetween(e.date, today) >= 0,
   );
@@ -47,25 +51,27 @@ export function learnProfile(events: PlanEvent[], today: string, netMisses: numb
   }
 
   let fingerGapDays: 2 | 3 = 2;
+  let fingerGapReason: FingerGapReason = null;
   if (anyFingerPain) {
     fingerGapDays = 3;
-    rationale.push('Finger/wrist pain in the last 4 weeks: hard finger sessions spaced 72h apart.');
+    fingerGapReason = 'recent-pain';
   } else if (meanRpe !== null && meanRpe >= hiThreshold) {
     fingerGapDays = 3;
-    rationale.push('Recent sessions rate well above your usual effort: hard finger sessions spaced 72h apart.');
+    fingerGapReason = 'high-rpe';
   } else if (heavyCount14 >= 3) {
     fingerGapDays = 3;
-    rationale.push('You have felt heavy on several recent days: hard finger sessions spaced 72h apart.');
+    fingerGapReason = 'heavy-days';
   }
 
   let capDelta: -1 | 0 | 1 = 0;
+  let capReason: CapReason = null;
   if (netMisses >= 3) {
     capDelta = -1;
-    rationale.push('You trained several days fewer than planned over the last 3 weeks: weekly session count reduced by one.');
+    capReason = 'misses';
   } else if (rpes.length >= 6 && netMisses === 0 && meanRpe !== null && meanRpe <= loThreshold && !anyFingerPain && heavyCount14 === 0) {
     capDelta = 1;
-    rationale.push('You have hit your weekly target at comfortable effort with no shortfall: weekly session count increased by one.');
+    capReason = 'clean-block';
   }
 
-  return { fingerGapDays, capDelta, todayReadiness, baselineRpe, rationale };
+  return { fingerGapDays, capDelta, todayReadiness, baselineRpe, fingerGapReason, capReason };
 }

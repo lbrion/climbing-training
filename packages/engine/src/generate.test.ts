@@ -76,6 +76,33 @@ describe('generatePlan', () => {
     expect(plan.notices.join(' ')).toMatch(/finger/i);
   });
 
+  it('coalesces pain, miss-recovery, and readiness into one recovery notice', () => {
+    const plan0 = generatePlan(base, '2026-08-03');
+    const high = plan0.sessions.find((s) => s.date === '2026-08-03' && s.intensity === 'high')!;
+    const state: UserState = {
+      ...base,
+      events: [
+        {
+          kind: 'feedback',
+          sessionId: high.id,
+          date: high.date,
+          completed: false,
+          rpe: null,
+          pain: { site: 'finger', severity: 2 },
+        },
+        { kind: 'readiness', date: '2026-08-04', level: 1 },
+      ],
+    };
+    const plan = generatePlan(state, '2026-08-04');
+    const recovery = plan.notices.filter((n) => /recover|easing off|finger\/wrist pain/i.test(n));
+    expect(recovery.length).toBe(1);
+    const text = recovery[0];
+    expect(text).toMatch(/finger/i);
+    // Should not also emit the separate "spaced 72h" learn rationale or a standalone shortfall/heavy line.
+    expect(plan.notices.filter((n) => /spaced 72h apart/i.test(n))).toHaveLength(0);
+    expect(plan.notices.filter((n) => /^Feeling heavy today/i.test(n))).toHaveLength(0);
+  });
+
   it('gates hangboarding on experience', () => {
     const novice: UserState = {
       ...base,

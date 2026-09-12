@@ -1,0 +1,8 @@
+---
+description: Open PRs ready for review (not draft) on this repo
+alwaysApply: true
+---
+
+# Pull requests
+
+When creating a pull request for this repository, open it **ready for review** (`draft: false`). Do not leave PRs as drafts unless the user explicitly asks for a draft. Draft PRs are easy to miss in review queues.

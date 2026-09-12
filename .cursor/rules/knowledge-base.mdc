@@ -1,0 +1,14 @@
+---
+description: Keep planning methodology knowledge base in sync with engine changes
+alwaysApply: true
+---
+
+# Knowledge base updates
+
+When changing plan prescription, adaptation, safety rules, or user-facing plan notices:
+
+- Update `docs/methodology.md` in the **same PR** (rules, invariants, notice coalescing).
+- Update `CLAUDE.md` if edit-target tables or recipes change.
+- Add/adjust tests in `packages/engine/src/generate.test.ts`.
+
+Do not merge planning-behavior changes with outdated methodology docs. Prefer fixing the doc over leaving “TODO: document later”.

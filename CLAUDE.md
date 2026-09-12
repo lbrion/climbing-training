@@ -2,6 +2,8 @@
 
 Mobile-first PWA that generates deterministic bouldering training plans. No LLMs, no randomness: the plan is a pure function of the user's config plus an append-only event log. Read this before changing anything — it tells you where each kind of change belongs.
 
+**Prescription methodology** (periodization, safety spacing, pain, misses, load, notices) lives in [`docs/methodology.md`](docs/methodology.md). Update that knowledge base in the same PR whenever planning behavior changes — see `AGENTS.md` and `.cursor/rules/knowledge-base.mdc`.
+
 ## Commands
 
 ```sh
@@ -34,8 +36,10 @@ CI (`.github/workflows/ci.yml`) runs `check` + `build` on every PR and push to `
 | Scheduling: periodization, weekly session selection, safety spacing (48/72h finger rule), deload, missed-session recovery, moves, load capping (ACWR), RPE hints | `generate.ts` — the core; almost every planning rule ends up here                                                                                                                                |
 | Cross-training runs: session-RPE / HR scoring, run→plan interference (concurrent-training spacing), what a run counts toward                                     | `generate.ts` — `runViews`/`runTier`/`runEffectiveRpe` + the interference pass; a run is the `run` `PlanEvent`/`SessionType`, never auto-scheduled and exempt from the finger rule               |
 | Adaptation from the event log: finger-gap widening, weekly cap ±1, readiness handling                                                                            | `learn.ts`                                                                                                                                                                                       |
+| User-facing plan notices (coalesced recovery copy)                                                                                                               | `notices.ts` — composed from intents in `generate.ts`; do not push overlapping strings ad hoc                                                                                                    |
 | History/stats shown in the History view (PRs, completion %, weekly load bars)                                                                                    | `metrics.ts`                                                                                                                                                                                     |
 | Shared data shapes (`Config`, `Session`, `PlanEvent`, `Plan`…)                                                                                                   | `types.ts` — the single source of truth for types across all three workspaces                                                                                                                    |
+| Human-readable planning methodology / knowledge base                                                                                                             | `docs/methodology.md`                                                                                                                                                                            |
 
 **Engine rules (hard constraints):**
 
@@ -107,7 +111,8 @@ CI (`.github/workflows/ci.yml`) runs `check` + `build` on every PR and push to `
 - Dates are ISO `YYYY-MM-DD` strings everywhere; use `addDays`/`daysBetween` from `generate.ts`, don't do Date math inline.
 - V-grades are plain numbers (0–17) typed as `VGrade`.
 - No new runtime dependencies in `packages/engine`, ever. Be reluctant elsewhere — the whole app currently needs only express, better-sqlite3, zod, react.
+- **Knowledge base:** any change to plan prescription, adaptation, safety rules, or notices must update `docs/methodology.md` in the same PR (`AGENTS.md`, `.cursor/rules/knowledge-base.mdc`).
 
 ## Git workflow
 
-Solo project: commit and push straight to `main` — no pull requests (owner-approved standing preference). If a session was started on a designated `claude/*` branch, still land the work on `main`. Because every push to `main` deploys to Railway, always run `npm run check` and `npm run build` locally before pushing.
+Solo project: local sessions may still commit and push straight to `main` when that is the standing preference. Cloud / Cursor agents should open a **non-draft** pull request (ready for review — see `AGENTS.md`) unless asked for a draft. Because every push to `main` deploys to Railway, always run `npm run check` and `npm run build` before merge or direct push.
