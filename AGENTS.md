@@ -14,6 +14,10 @@ Do **not** ship planning-behavior changes with stale methodology text. If you ar
 
 Cloud / PR automations: treat methodology drift as a review defect; fix the doc before merge when you change `generate.ts`, `learn.ts`, `assessment.ts`, `templates.ts`, or `notices.ts`.
 
+## Pull requests
+
+When opening a pull request for this repo, **create it ready for review — not as a draft**. Draft PRs are easy to miss; open them as reviewable so CI and humans can pick them up immediately. Only use draft if the user explicitly asks for a draft.
+
 ## Verification
 
 Before finishing:

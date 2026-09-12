@@ -115,4 +115,4 @@ CI (`.github/workflows/ci.yml`) runs `check` + `build` on every PR and push to `
 
 ## Git workflow
 
-Solo project: commit and push straight to `main` — no pull requests (owner-approved standing preference). If a session was started on a designated `claude/*` branch, still land the work on `main`. Because every push to `main` deploys to Railway, always run `npm run check` and `npm run build` locally before pushing.
+Solo project: local sessions may still commit and push straight to `main` when that is the standing preference. Cloud / Cursor agents should open a **non-draft** pull request (ready for review — see `AGENTS.md`) unless asked for a draft. Because every push to `main` deploys to Railway, always run `npm run check` and `npm run build` before merge or direct push.
