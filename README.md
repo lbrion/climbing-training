@@ -57,6 +57,9 @@ web/src/
 - Load is tracked with session-RPE (RPE × minutes, watch-recorded minutes when available); ACWR > 1.3 caps intensity.
 - Missed and moved sessions are events; the plan regenerates deterministically around them, preserving spacing rules.
 - Adaptation is earned: three clean weeks raise the weekly cap, misses lower it, pain widens finger spacing.
+- Overlapping recovery signals (pain, widened finger spacing, misses, low readiness) are coalesced into a single plan notice.
+
+Full prescription methodology: [`docs/methodology.md`](docs/methodology.md).
 
 ## Develop
 

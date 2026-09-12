@@ -1,5 +1,6 @@
 import { QUALITY_SESSIONS, rankWeaknesses } from './assessment.js';
 import { learnProfile } from './learn.js';
+import { composeNotices, emptyNoticeBag, type NoticeBag } from './notices.js';
 import { TEMPLATES, type Template } from './templates.js';
 import type {
   Adherence,
@@ -308,7 +309,7 @@ function computeLoad(events: PlanEvent[], sessions: Map<string, Session>, today:
   return { acute7d: acute, chronic28d: chronic, ratio, capped: ratio !== null && ratio > 1.3 };
 }
 
-function weeklySessionTypes(cfg: Config, slots: number, phase: Phase, pain: RecentPain, notices: string[]): SessionType[] {
+function weeklySessionTypes(cfg: Config, slots: number, phase: Phase, pain: RecentPain, _notices: string[]): SessionType[] {
   const weaknesses = rankWeaknesses(cfg.assessment, cfg.goal);
   const picked: SessionType[] = [];
   const count = (t: SessionType) => picked.filter((p) => p === t).length;
@@ -330,10 +331,7 @@ function weeklySessionTypes(cfg: Config, slots: number, phase: Phase, pain: Rece
     return true;
   };
 
-  if (pain.finger)
-    notices.push(`Finger/wrist pain reported: finger-loading sessions replaced with low-load work until ${pain.fingerUntil}.`);
-  if (pain.upperLimb)
-    notices.push(`Elbow/shoulder pain reported: high-intensity and heavy pulling replaced with lighter work until ${pain.upperUntil}.`);
+  // Pain notices are recorded once on NoticeBag in generatePlan (not per week).
 
   push('limit-boulder');
   for (const q of weaknesses) {
@@ -364,7 +362,8 @@ function orderForSpacing(types: SessionType[]): SessionType[] {
 
 export function generatePlan(state: UserState, today: string, internal?: { skipPainDiff?: boolean }): Plan {
   const { config } = state;
-  const notices: string[] = [];
+  // Notices are composed from NoticeBag at the end of generatePlan.
+  let notices: string[] = [];
   const pain = recentPain(state.events, today);
 
   let availability = config.availability;
@@ -382,12 +381,15 @@ export function generatePlan(state: UserState, today: string, internal?: { skipP
   const netMisses3wk = weeklyAdherence(state.events, availability, config.planStart, today, targetBase, 3).netMisses;
 
   const learned = learnProfile(state.events, today, netMisses3wk);
-  notices.push(...learned.rationale);
+  const bag: NoticeBag = emptyNoticeBag();
   const priorFingerInjury = config.assessment.injuryHistory.includes('finger') || config.assessment.injuryHistory.includes('wrist');
   const fingerGap = priorFingerInjury ? 3 : learned.fingerGapDays;
-  if (priorFingerInjury && learned.fingerGapDays < 3) {
-    notices.push('Past finger/wrist injury: hard finger sessions are kept 72h apart.');
-  }
+  bag.capDelta = learned.capDelta;
+  bag.capReason = learned.capReason;
+  if (learned.fingerGapReason) bag.fingerGapReason = learned.fingerGapReason;
+  else if (priorFingerInjury) bag.fingerGapReason = 'past-injury';
+  if (pain.finger) bag.painFingerUntil = pain.fingerUntil;
+  if (pain.upperLimb) bag.painUpperUntil = pain.upperUntil;
 
   const start = config.planStart;
   const endDay = daysBetween(start, today) + HORIZON_DAYS;
@@ -395,7 +397,7 @@ export function generatePlan(state: UserState, today: string, internal?: { skipP
   for (const w of cfg.travel ?? []) {
     if (w.to >= today && w.from <= horizonEnd) {
       const range = w.from === w.to ? w.from : `${w.from}–${w.to}`;
-      notices.push(`${w.label ? w.label + ' — ' : 'Traveling '}${range}: sessions on those days use the equipment you selected.`);
+      bag.travel.push(`${w.label ? w.label + ' — ' : 'Traveling '}${range}: sessions on those days use the equipment you selected.`);
     }
   }
   const sessions: Session[] = [];
@@ -575,7 +577,7 @@ export function generatePlan(state: UserState, today: string, internal?: { skipP
       if (drop) {
         sessions.splice(sessions.indexOf(drop), 1);
         byId.delete(drop.id);
-        notices.push(
+        bag.weekTrims.push(
           `You added a session on ${a.date}: ${drop.title} on ${drop.date} was removed to keep the week at ${weeklyCap} sessions.`,
         );
       }
@@ -699,11 +701,14 @@ export function generatePlan(state: UserState, today: string, internal?: { skipP
     sessions.push(inserted);
     byId.set(inserted.id, inserted);
     const shifted = movable.filter((o) => o.date !== savedDates.get(o.id)).length;
-    notices.push(
-      shifted > 0
-        ? `Missed ${missedTmpl.title} was rescheduled to ${insertDate}; ${shifted} later session${shifted === 1 ? '' : 's'} shifted.`
-        : `Missed ${missedTmpl.title} was rescheduled to ${insertDate}.`,
-    );
+    bag.missReschedules.push({
+      title: missedTmpl.title,
+      date: insertDate,
+      detail:
+        shifted > 0
+          ? `missed ${missedTmpl.title} was rescheduled to ${insertDate}; ${shifted} later session${shifted === 1 ? '' : 's'} shifted`
+          : `missed ${missedTmpl.title} was rescheduled to ${insertDate}`,
+    });
     return true;
   };
 
@@ -760,7 +765,7 @@ export function generatePlan(state: UserState, today: string, internal?: { skipP
         target.durationMin = Math.min(budget, missedTmpl.baseDurationMin);
         target.exercises = missedTmpl.exercises(target.weekPhase, cfg.assessment.maxBoulderGrade);
         target.warnings.push(`Recovered from missed session (replaced ${replacedTitle}).`);
-        notices.push(`Missed ${missedTmpl.title} was rescheduled to ${date}.`);
+        bag.missReschedules.push({ title: missedTmpl.title, date });
       } else if (onDate.length === 0 && scheduleHealthy(date)) {
         const inserted = {
           id: `${sessionId}-r`,
@@ -778,7 +783,7 @@ export function generatePlan(state: UserState, today: string, internal?: { skipP
         consumed.add(inserted.id);
         sessions.push(inserted);
         byId.set(inserted.id, inserted);
-        notices.push(`Missed ${missedTmpl.title} was rescheduled to ${date}.`);
+        bag.missReschedules.push({ title: missedTmpl.title, date });
       } else {
         continue;
       }
@@ -825,7 +830,7 @@ export function generatePlan(state: UserState, today: string, internal?: { skipP
 
   const load = computeLoad(state.events, byId, today, start);
   if (load.capped) {
-    notices.push('Training load rose quickly (acute:chronic > 1.3). High-intensity sessions this week are capped at moderate effort.');
+    bag.loadSpike = true;
     for (const s of sessions) {
       const age = daysBetween(today, s.date);
       if (s.type !== 'run' && age >= 0 && age < 7 && s.intensity === 'high') {
@@ -842,7 +847,7 @@ export function generatePlan(state: UserState, today: string, internal?: { skipP
         s.warnings.push('You reported feeling heavy today: keep this session sub-maximal.');
       }
     }
-    notices.push("Feeling heavy today: today's intensity is dialed back. Quality over load.");
+    bag.heavyToday = true;
   }
 
   const EXPECTED_RPE: Record<string, number> = { high: 8.5, medium: 6.5, low: 4.5 };
@@ -881,9 +886,7 @@ export function generatePlan(state: UserState, today: string, internal?: { skipP
   // Only flag a real training shortfall (days short of intent, crediting swaps/substitutions/adhoc), not raw misses.
   const recentShortfall = weeklyAdherence(state.events, availability, config.planStart, today, targetBase, 2).netMisses;
   if (recentShortfall >= 2) {
-    notices.push(
-      'You trained fewer days than planned over the last couple of weeks — moving or swapping sessions is fine, but if this is the new normal, update your availability so the plan matches real life.',
-    );
+    bag.shortfall = true;
   }
 
   // Transparency: the plan is deterministic, so we can compute the counterfactual no-pain plan and
@@ -904,6 +907,8 @@ export function generatePlan(state: UserState, today: string, internal?: { skipP
   }
 
   // Adhoc sessions and logged runs are always visible regardless of the window — retro-logged activity may be months back.
+  notices = composeNotices(bag);
+
   const visible = sessions
     .filter(
       (s) =>
