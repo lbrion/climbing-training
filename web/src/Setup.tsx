@@ -2,7 +2,15 @@ import { useState } from 'react';
 import type { Config, Goal, InjurySite } from '@climb/engine';
 import { api, localToday, type AppState } from './api.js';
 
-const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+const WEEKDAYS = [
+  { label: 'Sun', idx: 6 },
+  { label: 'Mon', idx: 0 },
+  { label: 'Tue', idx: 1 },
+  { label: 'Wed', idx: 2 },
+  { label: 'Thu', idx: 3 },
+  { label: 'Fri', idx: 4 },
+  { label: 'Sat', idx: 5 },
+] as const;
 const SITES: InjurySite[] = ['finger', 'wrist', 'elbow', 'shoulder', 'back', 'knee'];
 const SKILLS = ['overhang', 'slab', 'dynamic', 'crimps', 'compression', 'endurance'] as const;
 
@@ -25,6 +33,7 @@ const defaults: Config = {
   availability: { minutesByWeekday: [0, 90, 0, 90, 0, 120, 0] },
   equipment: { climbingGym: true, hangboard: false, boardWall: false, weights: false, pullupBar: false },
   planStart: todayIso(),
+  weekStartsOn: 'sunday',
 };
 
 export function Setup({ initial, onDone, onCancel }: { initial?: Config; onDone: (s: AppState) => void; onCancel?: () => void }) {
@@ -192,18 +201,18 @@ export function Setup({ initial, onDone, onCancel }: { initial?: Config; onDone:
     <section key="schedule">
       <h2>Weekly availability</h2>
       <p className="hint">Minutes you can train each day. 0 means rest day.</p>
-      {WEEKDAYS.map((d, i) => (
-        <label key={d} className="dayrow">
-          {d}
+      {WEEKDAYS.map(({ label, idx }) => (
+        <label key={label} className="dayrow">
+          {label}
           <input
             type="number"
             min={0}
             max={300}
             step={15}
-            value={cfg.availability.minutesByWeekday[i]}
+            value={cfg.availability.minutesByWeekday[idx]}
             onChange={(e) => {
               const mins = [...cfg.availability.minutesByWeekday] as Config['availability']['minutesByWeekday'];
-              mins[i] = +e.target.value;
+              mins[idx] = +e.target.value;
               setCfg({ ...cfg, availability: { minutesByWeekday: mins } });
             }}
           />

@@ -203,6 +203,7 @@ const configSchema = z.object({
     )
     .max(50)
     .optional(),
+  weekStartsOn: z.enum(['sunday', 'monday']).optional(),
 });
 
 const app = express();

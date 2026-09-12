@@ -32,6 +32,13 @@ describe('generatePlan', () => {
     expect(a).toEqual(b);
   });
 
+  it('ignores weekStartsOn (display preference only)', () => {
+    const sun = generatePlan({ ...base, config: { ...base.config, weekStartsOn: 'sunday' } }, '2026-08-03');
+    const mon = generatePlan({ ...base, config: { ...base.config, weekStartsOn: 'monday' } }, '2026-08-03');
+    expect(sun).toEqual(mon);
+    expect(sun).toEqual(generatePlan(base, '2026-08-03'));
+  });
+
   it('only schedules on available days', () => {
     const plan = generatePlan(base, '2026-08-03');
     for (const s of plan.sessions) {

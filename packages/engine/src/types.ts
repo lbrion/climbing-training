@@ -41,6 +41,9 @@ export interface TravelWindow {
   label?: string;
 }
 
+/** First day of the week in the calendar month view and availability editors. */
+export type WeekStartsOn = 'sunday' | 'monday';
+
 export interface Config {
   assessment: Assessment;
   goal: Goal;
@@ -48,6 +51,8 @@ export interface Config {
   equipment: Equipment;
   planStart: string;
   travel?: TravelWindow[];
+  /** Calendar week start; defaults to Sunday when omitted (legacy configs). */
+  weekStartsOn?: WeekStartsOn;
 }
 
 export type SessionType =

@@ -23,9 +23,15 @@ function addDays(iso: string, days: number): string {
   return new Date(Date.parse(iso + 'T00:00:00Z') + days * DAY_MS).toISOString().slice(0, 10);
 }
 
-function weekdayMon0(iso: string): number {
-  return (new Date(iso + 'T00:00:00Z').getUTCDay() + 6) % 7;
+function weekdayOffset(iso: string, weekStartsOn: 'sunday' | 'monday'): number {
+  const sun0 = new Date(iso + 'T00:00:00Z').getUTCDay();
+  return weekStartsOn === 'sunday' ? sun0 : (sun0 + 6) % 7;
 }
+
+const CAL_HEADS = {
+  sunday: ['S', 'M', 'T', 'W', 'T', 'F', 'S'],
+  monday: ['M', 'T', 'W', 'T', 'F', 'S', 'S'],
+} as const;
 
 type View = 'list' | 'calendar' | 'history';
 
@@ -161,6 +167,7 @@ export function PlanView({
     if (created && date <= (next.plan?.generatedFor ?? date)) onOpen(created);
   };
   const today = plan.generatedFor;
+  const weekStartsOn = state.config?.weekStartsOn ?? 'sunday';
   const [view, setView] = useState<View>(() => (localStorage.getItem('planView') as View) ?? 'list');
   const [selected, setSelected] = useState(today);
   const [month, setMonth] = useState(today.slice(0, 7));
@@ -308,12 +315,12 @@ export function PlanView({
             </button>
           </div>
           <div className="cal">
-            {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, i) => (
+            {CAL_HEADS[weekStartsOn].map((d, i) => (
               <div key={i} className="cal-head">
                 {d}
               </div>
             ))}
-            {Array.from({ length: weekdayMon0(monthDays[0]) }, (_, i) => (
+            {Array.from({ length: weekdayOffset(monthDays[0], weekStartsOn) }, (_, i) => (
               <div key={`pad-${i}`} className="cal-cell pad" />
             ))}
             {monthDays.map((date) => {
