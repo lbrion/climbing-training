@@ -915,6 +915,86 @@ legend {
 .type-count strong {
   color: var(--chalk);
 }
+
+.trends {
+  margin: 8px 0 24px;
+}
+.trends h3 {
+  margin: 0 0 6px;
+}
+.trends > .hint {
+  margin: 0 0 12px;
+}
+.trend-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.trend-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 12px 12px 8px;
+}
+.trend-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 4px;
+  padding: 0 4px;
+}
+.trend-delta.up {
+  color: var(--mint);
+}
+.trend-delta.down {
+  color: var(--ember);
+}
+.trend-empty {
+  margin: 4px 4px 10px;
+}
+.trend-chart {
+  width: 100%;
+  height: auto;
+  display: block;
+  touch-action: none;
+}
+.trend-chart .grid {
+  stroke: var(--line);
+  stroke-width: 1;
+}
+.trend-chart .axis {
+  fill: var(--muted);
+  font-family: var(--mono);
+  font-size: 9px;
+}
+.trend-chart .trend-line {
+  fill: none;
+  stroke: var(--mint);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.trend-chart .trend-dot {
+  fill: var(--mint);
+}
+.trend-chart .cursor-line {
+  stroke: var(--sky);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+}
+.trend-chart .cursor-dot {
+  fill: var(--sky);
+  stroke: var(--bg);
+  stroke-width: 2;
+}
+.trend-chart .readout {
+  fill: var(--chalk);
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 700;
+}
+
 .card.history.loggable {
   cursor: pointer;
 }

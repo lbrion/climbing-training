@@ -1,5 +1,6 @@
-import { latestImports, type PlanEvent, type Session } from '@climb/engine';
+import { latestImports, type PlanEvent, type Session, type TrendSeries } from '@climb/engine';
 import type { AppState } from './api.js';
+import { TrendChart } from './TrendChart.js';
 
 function fmtDay(iso: string): string {
   return new Date(iso + 'T00:00:00').toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
@@ -7,6 +8,14 @@ function fmtDay(iso: string): string {
 
 type Feedback = Extract<PlanEvent, { kind: 'feedback' }>;
 type Imported = Extract<PlanEvent, { kind: 'imported-activity' }>;
+
+const TREND_FORMATTERS: Partial<Record<TrendSeries['id'], (v: number) => string>> = {
+  maxGrade: (v) => `V${v}`,
+  avgRpe: (v) => v.toFixed(1),
+  readiness: (v) => v.toFixed(1),
+  load: (v) => (v >= 1000 ? `${Math.round(v / 100) / 10}k` : String(Math.round(v))),
+  volumeMin: (v) => (v >= 60 ? `${Math.round(v / 6) / 10}h` : String(Math.round(v))),
+};
 
 export function HistoryView({ state, onOpen }: { state: AppState; onOpen: (s: Session) => void }) {
   const plan = state.plan!;
@@ -22,6 +31,7 @@ export function HistoryView({ state, onOpen }: { state: AppState; onOpen: (s: Se
   const past = plan.sessions.filter((s) => s.date < today).sort((a, b) => b.date.localeCompare(a.date));
 
   const maxLoad = Math.max(1, ...(metrics?.weeklyLoads.map((w) => w.load) ?? [1]));
+  const trendSeries = metrics?.trends.series.filter((s) => s.values.some((v) => v !== null)) ?? [];
 
   return (
     <>
@@ -65,6 +75,29 @@ export function HistoryView({ state, onOpen }: { state: AppState; onOpen: (s: Se
             </div>
           )}
         </div>
+      )}
+
+      {metrics && (
+        <section className="trends">
+          <h3>Trends</h3>
+          <p className="hint">Rolling 12 weeks from what you have logged — scrub a chart to inspect a week.</p>
+          {trendSeries.length === 0 ? (
+            <p className="hint">No trend data yet. Complete a few sessions with RPE, grades, or readiness to populate these.</p>
+          ) : (
+            <div className="trend-grid">
+              {trendSeries.map((s) => (
+                <TrendChart
+                  key={s.id}
+                  label={s.label}
+                  unit={s.unit}
+                  weekStarts={metrics.trends.weekStarts}
+                  values={s.values}
+                  formatValue={TREND_FORMATTERS[s.id]}
+                />
+              ))}
+            </div>
+          )}
+        </section>
       )}
 
       <h3>Past sessions</h3>

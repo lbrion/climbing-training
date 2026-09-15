@@ -69,6 +69,10 @@ Notices are **composed**, not naively appended (`notices.ts`). Overlapping recov
 
 If you change a planning rule, ask: does the notice text still explain the _actual_ plan change without repeating the same intent?
 
+## History trends
+
+`computeMetrics` exposes rolling 12-week series for History: weekly load (session-RPE AU), average RPE, best send grade, sessions completed, training minutes, pain days, and average readiness. Weeks with no observations are `null` so charts can gap. Summary cards (PR, 4-week completion, trailing load bars, type counts) stay on the same payload.
+
 ## Where to edit
 
 | Concern                                 | File            |
@@ -78,7 +82,7 @@ If you change a planning rule, ask: does the notice text still explain the _actu
 | Scheduling, spacing, misses, load, runs | `generate.ts`   |
 | Cap / finger-gap adaptation             | `learn.ts`      |
 | Notice copy / coalescing                | `notices.ts`    |
-| History stats                           | `metrics.ts`    |
+| History stats and 12-week trend series  | `metrics.ts`    |
 
 ## Keeping this doc honest
 
