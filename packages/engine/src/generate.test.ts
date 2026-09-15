@@ -454,6 +454,47 @@ describe('generatePlan', () => {
     expect(metrics.prDate).toBe('2026-08-05');
   });
 
+  it('builds rolling weekly trendlines from logged load, RPE, grades, and readiness', () => {
+    const events: UserState['events'] = [];
+    // Three weeks of activity ending at 2026-08-24.
+    const weeks = [
+      { start: '2026-08-04', rpe: 6, grade: 5, ready: 3 },
+      { start: '2026-08-11', rpe: 7, grade: 6, ready: 2 },
+      { start: '2026-08-18', rpe: 8, grade: 7, ready: 1 },
+    ];
+    for (const w of weeks) {
+      const d1 = w.start;
+      const d2 = addDays(w.start, 2);
+      events.push(
+        { kind: 'adhoc-session', date: d1, type: 'limit-boulder' },
+        { kind: 'feedback', sessionId: `adhoc-${d1}-0`, date: d1, completed: true, rpe: w.rpe, pain: null, topGrade: w.grade },
+        { kind: 'adhoc-session', date: d2, type: 'volume-boulder' },
+        {
+          kind: 'feedback',
+          sessionId: `adhoc-${d2}-0`,
+          date: d2,
+          completed: true,
+          rpe: w.rpe - 1,
+          pain: w.ready === 1 ? { site: 'finger', severity: 2 } : null,
+          topGrade: w.grade - 1,
+        },
+        { kind: 'readiness', date: d1, level: w.ready as 1 | 2 | 3 },
+      );
+    }
+    const metrics = computeMetrics({ ...base, events }, '2026-08-24');
+    expect(metrics.trends.weekStarts).toHaveLength(12);
+    const byId = Object.fromEntries(metrics.trends.series.map((s) => [s.id, s]));
+    expect(byId.load.values.filter((v) => v !== null).length).toBeGreaterThanOrEqual(3);
+    expect(byId.avgRpe.values.some((v) => v !== null)).toBe(true);
+    expect(byId.maxGrade.values.filter((v) => v !== null).at(-1)).toBe(7);
+    expect(byId.sessions.values.some((v) => (v ?? 0) >= 2)).toBe(true);
+    expect(byId.painDays.values.some((v) => (v ?? 0) > 0)).toBe(true);
+    expect(byId.readiness.values.some((v) => v === 1)).toBe(true);
+    // Trailing 4-week load bars stay aligned with the longer trend.
+    expect(metrics.weeklyLoads).toHaveLength(4);
+    expect(metrics.weeklyLoads.at(-1)!.weekStart).toBe(metrics.trends.weekStarts.at(-1));
+  });
+
   it('does not let edited (superseding) feedback inflate the RPE trend', () => {
     const future = { kind: 'adhoc-session' as const, date: '2026-08-15', type: 'strength' as const };
     // One real strength session on 08-05, logged three times (edits) at RPE 3.
